@@ -38,8 +38,9 @@ def main(args):
         print('{}: {}'.format(i, agent))
     print()
     try:
-        s = input("Choose an agent (enter a number from 0 to {}): ".format(len(agent_names) - 1))
-        k = int(s)
+        # s = input("Choose an agent (enter a number from 0 to {}): ".format(len(agent_names) - 1))
+        # k = int(s)
+        k=2
         agent_name = agent_names[k]
     except:
         print("Input is not valid. Use 0 by default.")
@@ -55,6 +56,7 @@ def main(args):
     try:
         s = input("Choose a furniture model (enter a number from 0 to {}): ".format(len(furniture_names) - 1))
         furniture_id = int(s)
+        # furniture_id=0
         furniture_name = furniture_names[furniture_id]
     except:
         print("Input is not valid. Use 0 by default.")
@@ -69,8 +71,9 @@ def main(args):
         print('{}: {}'.format(i, background))
     print()
     try:
-        s = input("Choose a background (enter a number from 0 to {}): ".format(len(background_names) - 1))
-        k = int(s)
+        # s = input("Choose a background (enter a number from 0 to {}): ".format(len(background_names) - 1))
+        # k = int(s)
+        k=0
         background_name = background_names[k]
     except:
         print("Input is not valid. Use 0 by default.")
@@ -82,6 +85,10 @@ def main(args):
     args.env = env_name
     args.furniture_id = furniture_id
     args.background = background_name
+
+    ### added by Soroush ###
+    args.debug = False
+    args.spacemouse_input = True
 
     print()
     print("Creating environment (robot: {}, furniture: {}, background: {})".format(

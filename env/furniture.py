@@ -809,16 +809,16 @@ class FurnitureEnv(metaclass=EnvMeta):
                 is_rot_forward_aligned:
             return True
 
-        if self._debug:
-            if pos_dist >= self._env_config['pos_dist']:
-                print('(connect) two parts are too far ({} >= {})'.format(pos_dist, self._env_config['pos_dist']))
-            elif rot_dist_up <= self._env_config['rot_dist_up']:
-                print('(connect) misaligned ({} <= {})'.format(rot_dist_up, self._env_config['rot_dist_up']))
-            elif not is_rot_forward_aligned:
-                print('(connect) aligned, but rotate a connector ({} <= {})'.format(max_rot_dist_forward, self._env_config['rot_dist_forward']))
-            else:
-                print('(connect) misaligned. move connectors to align the axis')
-        return False
+        # if self._debug:
+        if pos_dist >= self._env_config['pos_dist']:
+            print('(connect) two parts are too far ({} >= {})'.format(pos_dist, self._env_config['pos_dist']))
+        elif rot_dist_up <= self._env_config['rot_dist_up']:
+            print('(connect) misaligned ({} <= {})'.format(rot_dist_up, self._env_config['rot_dist_up']))
+        elif not is_rot_forward_aligned:
+            print('(connect) aligned, but rotate a connector ({} <= {})'.format(max_rot_dist_forward, self._env_config['rot_dist_forward']))
+        else:
+            print('(connect) misaligned. move connectors to align the axis')
+        # return False
 
     def _move_objects_target(self, obj, target_pos, target_quat, gravity=1):
         """
@@ -1480,7 +1480,7 @@ class FurnitureEnv(metaclass=EnvMeta):
         else:
             return
 
-        print('Input action: %s' % action)
+        # print('Input action: %s' % action)
         self.action = action
         self._action_on = True
 
@@ -1538,9 +1538,19 @@ class FurnitureEnv(metaclass=EnvMeta):
         else:
             return
 
-        print('Input action: %s' % action)
+        # print('Input action: %s' % action)
         self.action = action
         self._action_on = True
+
+    def spacemouse_input(self):
+        a, valid, _, _ = self.expert.get_action(None)
+
+        if valid:
+            self.action = None
+            self._action_on = True
+            return a
+        else:
+            return None
 
     def run_demo(self, config):
         """
@@ -1602,7 +1612,29 @@ class FurnitureEnv(metaclass=EnvMeta):
         cursor_idx = 0
         flag = [-1, -1]
         t = 0
+
+        if config.spacemouse_input:
+            from railrl.demos.spacemouse.input_server import SpaceMouseExpert
+            self.expert = SpaceMouseExpert(
+                xyz_dims=3,
+                xyz_remap=[1, 0, 2],
+                xyz_scale=[2, -2, 2],
+                xyz_abs_threshold=0.5,
+                rot_dims=3,
+                rot_remap=[0, 1, 2],
+                rot_scale=[0.5, -0.5, -0.5],
+                rot_abs_threshold=0.8,
+                rot_discrete=True,
+                min_clip=-1,
+                max_clip=1,
+            )
+
         while True:
+            if config.spacemouse_input:
+                spacemouse_input = self.spacemouse_input()
+            else:
+                spacemouse_input = None
+
             if config.unity:
                 self.key_input_unity()
 
@@ -1660,6 +1692,9 @@ class FurnitureEnv(metaclass=EnvMeta):
                 action[3] = -1
             if self.action == 'r_r':
                 action[3] = 1
+
+            if spacemouse_input is not None:
+                action[0:6] = spacemouse_input[0:6]
 
             if self.action == 'record':
                 vr.save_video('video.mp4')
