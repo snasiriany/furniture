@@ -69,23 +69,23 @@ class Trainer(object):
             exclude = ['device']
             if not self._config.wandb:
                 os.environ['WANDB_MODE'] = 'dryrun'
+            else:
+                # user or team name
+                entity = 'soroush' #'clvr'
+                # project name
+                project = 'furniture'
 
-            # user or team name
-            entity = 'clvr'
-            # project name
-            project = 'furniture'
+                assert entity != 'clvr', "Please change 'entity' with your wandb id" \
+                    "or disable wandb by setting os.environ['WANDB_MODE'] = 'dryrun'"
 
-            assert entity != 'clvr', "Please change 'entity' with your wandb id" \
-                "or disable wandb by setting os.environ['WANDB_MODE'] = 'dryrun'"
-
-            wandb.init(
-                resume=config.run_name,
-                project=project,
-                config={k: v for k, v in config.__dict__.items() if k not in exclude},
-                dir=config.log_dir,
-                entity=entity,
-                notes=config.notes
-            )
+                wandb.init(
+                    resume=config.run_name,
+                    project=project,
+                    config={k: v for k, v in config.__dict__.items() if k not in exclude},
+                    dir=config.log_dir,
+                    entity=entity,
+                    notes=config.notes
+                )
 
     def _save_ckpt(self, ckpt_num, update_iter):
         """

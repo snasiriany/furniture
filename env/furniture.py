@@ -704,7 +704,8 @@ class FurnitureEnv(metaclass=EnvMeta):
                         if site1_id in self._connected_sites or site2_id in self._connected_sites:
                             continue
                         if self._debug:
-                            print(f'connect {site1_name} and {site2_name}, {self._connect_step}/{self._num_connect_steps}')
+                            # print(f'connect {site1_name} and {site2_name}, {self._connect_step}/{self._num_connect_steps}')
+                            print('connect {} and {}, {}/{}'.format(site1_name, site2_name, self._connect_step, self._num_connect_steps))
                         if self._connect_step < self._num_connect_steps:
                             # set target as site2 pos
                             site1_pos_quat = self._site_xpos_xquat(site1_name)
@@ -1604,7 +1605,7 @@ class FurnitureEnv(metaclass=EnvMeta):
         vr = VideoRecorder()
         vr.add(self.render('rgb_array'))
 
-        if not config.unity:
+        if not config.unity and not config.spacemouse_input:
             # override keyboard callback function of viewer
             import glfw
             glfw.set_key_callback(self._viewer.window, self.key_callback)

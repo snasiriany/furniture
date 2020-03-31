@@ -59,6 +59,11 @@ def run(config):
     else:
         config.device = torch.device("cpu")
 
+    ### added by Soroush ###
+    config.unity = False
+    config.wandb = True
+    config.furniture_id = 0
+
     # build a trainer
     trainer = Trainer(config)
     if config.is_train:

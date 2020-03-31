@@ -128,7 +128,8 @@ class RolloutRunner(object):
         # render video frame
         frame = self._env.render('rgb_array') * 255.0
         fheight, fwidth = frame.shape[:2]
-        frame = np.concatenate([frame, np.zeros((fheight, fwidth, 3))], 0)
+        if self._config.record_caption:
+            frame = np.concatenate([frame, np.zeros((fheight, fwidth, 3))], 0)
 
         if self._config.record_caption:
             # add caption to video frame
