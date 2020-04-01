@@ -9,6 +9,7 @@ from config.furniture import get_default_config
 from gym.spaces import Box, Dict
 
 from multiworld.core.multitask_env import MultitaskEnv
+from multiworld.envs.env_util import concatenate_box_spaces
 
 class FurnitureMultiworld(MultitaskEnv):
     """
@@ -37,11 +38,9 @@ class FurnitureMultiworld(MultitaskEnv):
         object_high = np.ones(orig_obs_space['object_ob'])
 
         # covert observation space
-        obs_space = gym.spaces.Box(
-            np.concatenate((robot_low, object_low)),
-            np.concatenate((robot_high, object_high)),
-            dtype=np.float32
-        )
+        robot_space = Box(robot_low, robot_high, dtype=np.float32)
+        object_space = Box(object_low, object_high, dtype=np.float32)
+        obs_space = concatenate_box_spaces(robot_space, object_space)
         self.observation_space = Dict([
             ('observation', obs_space),
             ('desired_goal',obs_space),
@@ -49,9 +48,9 @@ class FurnitureMultiworld(MultitaskEnv):
             ('state_observation', obs_space),
             ('state_desired_goal', obs_space),
             ('state_achieved_goal', obs_space),
-            ('proprio_observation', orig_obs_space['robot_ob']),
-            ('proprio_desired_goal', orig_obs_space['robot_ob']),
-            ('proprio_achieved_goal', orig_obs_space['robot_ob']),
+            ('proprio_observation', robot_space),
+            ('proprio_desired_goal', robot_space),
+            ('proprio_achieved_goal', robot_space),
         ])
 
         # covert action space
@@ -95,10 +94,19 @@ class FurnitureMultiworld(MultitaskEnv):
         )
 
     def compute_rewards(self, actions, obs, prev_obs=None, reward_type=None):
-        return np.zeros(len(obs['state_observation']))
+        # return np.zeros(len(obs['state_observation']))
+        return self._wrapped_env.compute_rewards(actions, obs, prev_obs, reward_type)
 
     def sample_goals(self, batch_size):
         return None
 
     def get_goal(self):
         return None
+
+    def get_image(self, width=84, height=84, camera_name=None):
+        return self.sim.render(
+            camera_name=self._camera_name,
+            width=width,
+            height=height,
+            depth=False
+        )[::-1,:,:]
