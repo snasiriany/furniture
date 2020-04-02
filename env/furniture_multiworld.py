@@ -25,8 +25,9 @@ class FurnitureMultiworld(MultitaskEnv):
 
         name = kwargs['name']
         for key, value in kwargs.items():
-            if hasattr(config, key):
-                setattr(config, key, value)
+            # if hasattr(config, key):
+            #     setattr(config, key, value)
+            setattr(config, key, value)
 
         # create an environment
         self._wrapped_env = make_env(name, config)
@@ -98,10 +99,10 @@ class FurnitureMultiworld(MultitaskEnv):
         return self._wrapped_env.compute_rewards(actions, obs, prev_obs, reward_type)
 
     def sample_goals(self, batch_size):
-        return None
+        assert False
 
     def get_goal(self):
-        return None
+        assert False
 
     def get_image(self, width=84, height=84, camera_name=None):
         return self.sim.render(
