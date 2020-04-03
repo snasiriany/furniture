@@ -15,23 +15,75 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
     def __init__(self, config):
         super().__init__(config)
 
+        self._state_goal = None
+
     @property
     def dof(self):
         """
         Returns the DoF of the curosr agent.
         """
         assert self._control_type == 'ik'
-        if self._config.small_action_space:
-            dof = (2 + 0 + 0) * 2 + 0  # (move, rotate, select) * 2 + connect
+        if self._config.tight_action_space:
+            move = rotate = select = connect = 0
+            if self._config.control_degrees == '2d':
+                move = 2
+            elif self._config.control_degrees == '3d':
+                move = 3
+            elif self._config.control_degrees == '3d+rot':
+                move = 3
+                rotate = 3
+            elif self._config.control_degrees == '2d+select':
+                move = 2
+                select = 1
+            else:
+                raise NotImplementedError
+
+            dof = (move + rotate + select) * 2 + connect
             return dof
         else:
             return super().dof
 
+    def reset(self, furniture_id=None, background=None):
+        obs = super().reset(furniture_id=furniture_id, background=background)
+
+        # set the goal
+        robot_ob = obs['robot_ob'].copy()
+        object_ob = obs['object_ob'].copy()
+
+        robot_goal = np.zeros(robot_ob.size)
+        object_goal = np.zeros(object_ob.size)
+
+        if self._config.task_type == "reach_obj":
+            robot_goal[0:3] = object_ob[0:3]
+            robot_goal[3:6] = object_ob[7:10]
+            robot_goal[6] = 0
+            robot_goal[7] = 0
+            object_goal = object_ob
+            self._state_goal = np.concatenate((robot_goal, object_goal))
+        elif self._config.task_type == "reach_obj_and_latch":
+            robot_goal[0:3] = object_ob[0:3]
+            robot_goal[3:6] = object_ob[7:10]
+            robot_goal[6] = 1
+            robot_goal[7] = 1
+            object_goal = object_ob
+            self._state_goal = np.concatenate((robot_goal, object_goal))
+        else:
+            raise NotImplementedError
+
+        return obs
+
     def _step(self, a):
-        if self._config.small_action_space:
+        if self._config.tight_action_space:
             low_level_a = np.zeros(super().dof)
-            low_level_a[0:2] = a[0:2]
-            low_level_a[7:9] = a[2:4]
+            if self._config.control_degrees == '2d':
+                low_level_a[0:2] = a[0:2]
+                low_level_a[7:9] = a[2:4]
+            elif self._config.control_degrees == '3d':
+                raise NotImplementedError
+            elif self._config.control_degrees == '3d+rot':
+                raise NotImplementedError
+            else:
+                raise NotImplementedError
         else:
             low_level_a = a.copy()
             if self._config.control_degrees == '2d':
@@ -44,6 +96,12 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                 low_level_a[6] = 0
                 low_level_a[13] = 0
                 low_level_a[14] = 0
+            elif self._config.control_degrees == '2d+select':
+                low_level_a[2:6] = 0
+                low_level_a[9:13] = 0
+                low_level_a[14] = 0
+            else:
+                raise NotImplementedError
 
         ob, reward, done, _ = super()._step(low_level_a)
 
@@ -53,13 +111,15 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
 
     def _get_info(self):
         obs = self._get_obs()
-        robot1 = obs["robot_ob"][0:3]
-        robot2 = obs["robot_ob"][3:6]
+        cursor1 = obs["robot_ob"][0:3]
+        cursor2 = obs["robot_ob"][3:6]
         obj1 = obs["object_ob"][:7]
         obj2 = obs["object_ob"][7:]
         info = dict(
-            robot1_obj1_dist=np.linalg.norm(obj1[:3] - robot1[:3]),
-            robot2_obj2_dist=np.linalg.norm(obj2[:3] - robot2[:3]),
+            cursor1_obj1_dist=np.linalg.norm(obj1[:3] - cursor1[:3]),
+            cursor2_obj2_dist=np.linalg.norm(obj2[:3] - cursor2[:3]),
+            cursor1_latched=obs["robot_ob"][6],
+            cursor2_latched=obs["robot_ob"][7],
         )
         return info
 
@@ -80,22 +140,29 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
 
     def compute_rewards(self, actions, obs, prev_obs=None, reward_type=None):
         ### For multiworld envs only! ###
-        robot_ob = obs["state_observation"][:,0:8]
-        object_ob = obs["state_observation"][:,8:22]
+        # robot_ob = obs["state_observation"][:,0:8]
+        # object_ob = obs["state_observation"][:,8:22]
+        #
+        # cursor1 = robot_ob[:,0:3]
+        # cursor2 = robot_ob[:,3:6]
+        # obj1 = object_ob[:,:7]
+        # obj2 = object_ob[:,7:]
+        #
+        # cursor1_obj1_dist = np.linalg.norm(obj1[:,:3] - cursor1[:,:3], axis=1)
+        # cursor2_obj2_dist = np.linalg.norm(obj2[:,:3] - cursor2[:,:3], axis=1)
+        #
+        # if self._config.reward_type == "cursor1_obj1":
+        #     return - (cursor1_obj1_dist)
+        # elif self._config.reward_type == "cursor2_obj2":
+        #     return - (cursor2_obj2_dist)
+        # elif self._config.reward_type == "cursor1_obj1_and_cursor2_obj2":
+        #     return - (cursor1_obj1_dist + cursor2_obj2_dist)
+        # else:
+        #     raise NotImplementedError
 
-        robot1 = robot_ob[:,0:3]
-        robot2 = robot_ob[:,3:6]
-        obj1 = object_ob[:,:7]
-        obj2 = object_ob[:,7:]
 
-        robot1_obj1_dist = np.linalg.norm(obj1[:,:3] - robot1[:,:3], axis=1)
-        robot2_obj2_dist = np.linalg.norm(obj2[:,:3] - robot2[:,:3], axis=1)
+        state = obs["state_observation"]
+        goal = obs["state_desired_goal"]
 
-        if self._config.reward_type == "robot1_obj1":
-            return - (robot1_obj1_dist)
-        elif self._config.reward_type == "robot2_obj2":
-            return - (robot2_obj2_dist)
-        elif self._config.reward_type == "robot1_obj1_and_robot2_obj2":
-            return - (robot1_obj1_dist + robot2_obj2_dist)
-        else:
-            raise NotImplementedError
+        dist = np.linalg.norm(state - goal, axis=1)
+        return -dist

@@ -80,7 +80,8 @@ class FurnitureMultiworld(MultitaskEnv):
     def __covert_to_multiworld_obs(self, obs):
         flat_obs = np.concatenate((obs['robot_ob'], obs['object_ob']))
         robot_dim = obs['robot_ob'].size
-        state_goal = np.zeros(self.observation_space.spaces['state_desired_goal'].low.size)
+        # state_goal = np.zeros(self.observation_space.spaces['state_desired_goal'].low.size)
+        state_goal = self._state_goal
 
         return dict(
             observation=flat_obs,
