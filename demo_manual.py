@@ -54,9 +54,9 @@ def main(args):
         print('{}: {}'.format(i, furniture_name))
     print()
     try:
-        s = input("Choose a furniture model (enter a number from 0 to {}): ".format(len(furniture_names) - 1))
-        furniture_id = int(s)
-        # furniture_id=0
+        # s = input("Choose a furniture model (enter a number from 0 to {}): ".format(len(furniture_names) - 1))
+        # furniture_id = int(s)
+        furniture_id=0
         furniture_name = furniture_names[furniture_id]
     except:
         print("Input is not valid. Use 0 by default.")
@@ -81,7 +81,8 @@ def main(args):
 
 
     # set parameters for the environment (env, furniture_id, background)
-    env_name = 'Furniture{}Env'.format(agent_name)
+    # env_name = 'Furniture{}Env'.format(agent_name)
+    env_name = 'FurnitureCursorRLEnv'
     args.env = env_name
     args.furniture_id = furniture_id
     args.background = background_name
@@ -89,6 +90,11 @@ def main(args):
     ### added by Soroush ###
     args.debug = False
     args.spacemouse_input = True
+
+    args.fixed_reset = False
+    args.tight_action_space = False
+    args.control_degrees = '2d+select'
+    args.task_type = 'latch'
 
     print()
     print("Creating environment (robot: {}, furniture: {}, background: {})".format(

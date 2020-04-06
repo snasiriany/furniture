@@ -1908,6 +1908,15 @@ class FurnitureEnv(metaclass=EnvMeta):
             self.reset()
             self._fail = True
 
+    def get_state(self):
+        """
+        Gets the qpos and qvel of the MuJoCo sim
+        """
+        state = self.sim.get_state()
+        qpos, qvel = state.qpos.copy(), state.qvel.copy()
+        assert qpos.shape == (self.sim.model.nq,) and qvel.shape == (self.sim.model.nv,)
+        return qpos, qvel
+
     def set_state(self, qpos, qvel):
         """
         Sets the qpos and qvel of the MuJoCo sim

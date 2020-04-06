@@ -81,7 +81,7 @@ class FurnitureMultiworld(MultitaskEnv):
         flat_obs = np.concatenate((obs['robot_ob'], obs['object_ob']))
         robot_dim = obs['robot_ob'].size
         # state_goal = np.zeros(self.observation_space.spaces['state_desired_goal'].low.size)
-        state_goal = self._state_goal
+        state_goal = self._state_goal.copy()
 
         return dict(
             observation=flat_obs,
@@ -99,11 +99,21 @@ class FurnitureMultiworld(MultitaskEnv):
         # return np.zeros(len(obs['state_observation']))
         return self._wrapped_env.compute_rewards(actions, obs, prev_obs, reward_type)
 
+    def get_env_state(self):
+        return self.get_state()
+
+    def set_env_state(self, state):
+        qpos, qvel = state
+        self.set_state(qpos, qvel)
+
     def sample_goals(self, batch_size):
         assert False
 
     def get_goal(self):
-        assert False
+        return {
+            'desired_goal': self._state_goal.copy(),
+            'state_desired_goal': self._state_goal.copy(),
+        }
 
     def get_image(self, width=84, height=84, camera_name=None):
         return self.sim.render(
