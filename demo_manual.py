@@ -10,9 +10,9 @@ import argparse
 
 import numpy as np
 
-from env import make_env
-from env.models import furniture_names, background_names
-from util import str2bool
+from furniture.env import make_env
+from furniture.env.models import furniture_names, background_names
+from furniture.util import str2bool
 
 
 # available agents
@@ -54,9 +54,9 @@ def main(args):
         print('{}: {}'.format(i, furniture_name))
     print()
     try:
-        # s = input("Choose a furniture model (enter a number from 0 to {}): ".format(len(furniture_names) - 1))
-        # furniture_id = int(s)
-        furniture_id=0
+        s = input("Choose a furniture model (enter a number from 0 to {}): ".format(len(furniture_names) - 1))
+        furniture_id = int(s)
+        # furniture_id=0
         furniture_name = furniture_names[furniture_id]
     except:
         print("Input is not valid. Use 0 by default.")
@@ -94,7 +94,10 @@ def main(args):
     args.fixed_reset = False
     args.tight_action_space = False
     args.control_degrees = '2d+select'
-    args.task_type = 'latch'
+    # args.task_type = 'move_obj' #'latch+move_obj'
+    args.task_type = 'latch+move_obj'
+    args.reward_type = 'object1_xyz_distance'
+    args.fixed_goal = False
 
     print()
     print("Creating environment (robot: {}, furniture: {}, background: {})".format(
@@ -129,7 +132,7 @@ def argsparser():
     parser.add_argument('--seed', type=int, default=123)
     parser.add_argument('--debug', type=str2bool, default=False)
 
-    import config.furniture as furniture_config
+    import furniture.config.furniture as furniture_config
     furniture_config.add_argument(parser)
 
     args = parser.parse_args()
