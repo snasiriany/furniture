@@ -35,7 +35,10 @@ class FurnitureCursorEnv(FurnitureEnv):
 
         # requires multiple connection actions to make connection between two
         # parts.
-        self._num_connect_steps = 10
+        if "num_connect_steps" in config:
+            self._num_connect_steps = config.num_connect_steps
+        else:
+            self._num_connect_steps = 10
 
         self._cursor_selected = [None, None]
 

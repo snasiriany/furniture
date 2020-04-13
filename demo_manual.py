@@ -54,9 +54,9 @@ def main(args):
         print('{}: {}'.format(i, furniture_name))
     print()
     try:
-        s = input("Choose a furniture model (enter a number from 0 to {}): ".format(len(furniture_names) - 1))
-        furniture_id = int(s)
-        # furniture_id=0
+        # s = input("Choose a furniture model (enter a number from 0 to {}): ".format(len(furniture_names) - 1))
+        # furniture_id = int(s)
+        furniture_id=0
         furniture_name = furniture_names[furniture_id]
     except:
         print("Input is not valid. Use 0 by default.")
@@ -91,13 +91,27 @@ def main(args):
     args.debug = False
     args.spacemouse_input = True
 
-    args.fixed_reset = False
+    # args.fixed_reset = False
     args.tight_action_space = False
-    args.control_degrees = '2d+select'
-    # args.task_type = 'move_obj' #'latch+move_obj'
-    args.task_type = 'latch+move_obj'
+    # args.control_degrees = '2d+select'
+    args.control_degrees = '3dpos+3drot+select+connect'
+    args.task_type = 'move_obj' #'latch+move_obj'
+    # args.task_type = 'latch+move_obj'
+    # args.task_type = "reach+latch+move_obj"
     args.reward_type = 'object1_xyz_distance'
-    args.fixed_goal = False
+    # args.fixed_goal = False
+    args.preempt_collisions = True
+
+    args.reset_type = 'var_2dpos'
+    # args.reset_type = 'var_2dpos+var_1drot'
+    args.goal_type = 'reset'
+
+    args.pos_dist = 0.1,
+    # args.rot_dist_up = -np.inf
+    # args.rot_dist_forward = -np.inf
+    # args.project_dist = -np.inf
+
+    args.num_connect_steps = 0
 
     print()
     print("Creating environment (robot: {}, furniture: {}, background: {})".format(

@@ -3,6 +3,7 @@ from collections import OrderedDict
 import numpy as np
 
 from furniture.env.furniture_cursor import FurnitureCursorEnv
+from . import transform_utils as T
 
 
 class FurnitureCursorRLEnv(FurnitureCursorEnv):
@@ -14,6 +15,10 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         super().__init__(config)
 
         self._state_goal = None
+
+        for k in self._env_config.keys():
+            if k in self._config:
+                self._env_config[k] = getattr(self._config, k)
 
     @property
     def dof(self):
@@ -30,6 +35,15 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             elif self._config.control_degrees == '3d+rot':
                 move = 3
                 rotate = 3
+            elif self._config.control_degrees == '3dpos+3drot+select':
+                move = 3
+                rotate = 3
+                select = 1
+            elif self._config.control_degrees == '3dpos+3drot+select+connect':
+                move = 3
+                rotate = 3
+                select = 1
+                connect = 1
             elif self._config.control_degrees == '2d+select':
                 move = 2
                 select = 1
@@ -43,15 +57,17 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
 
     def reset(self, furniture_id=None, background=None):
         ### sample goal by finding valid configuration in sim ###
-        if self._config.task_type in ["latch+move_obj", "move_obj"]:
-            if self._config.fixed_goal:
+        if self._config.task_type in ["reach+latch+move_obj", "latch+move_obj", "move_obj"]:
+            if self._config.goal_type == 'fixed':
                 object_goal = np.zeros(14)
                 object_goal[0:3] = [0.3, 0.3, 0.05]
                 object_goal[7:10] = [-0.3, 0.3, 0.05]
                 object_goal[3:7] = [1, 0, 0, 0]
                 object_goal[10:14] = [1, 0, 0, 0]
-            else:
+            elif self._config.goal_type == 'reset':
                 object_goal = super().reset(furniture_id=furniture_id, background=background)["object_ob"].copy()
+            else:
+                raise NotImplementedError
         else:
             object_goal = None # defer setting goal to later
 
@@ -81,7 +97,7 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             robot_goal[6] = 1
             robot_goal[7] = 1
             object_goal = object_ob
-        elif self._config.task_type in ["latch+move_obj", "move_obj"]:
+        elif self._config.task_type in ["reach+latch+move_obj", "latch+move_obj", "move_obj"]:
             robot_goal[0:3] = object_goal[0:3]
             robot_goal[3:6] = object_goal[7:10]
             robot_goal[6] = 1
@@ -104,6 +120,13 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                 low_level_a[7:9] = a[2:4]
                 low_level_a[6] = a[4]
                 low_level_a[13] = a[5]
+            elif self._config.control_degrees == '3dpos+3drot+select':
+                low_level_a[0:7] = a[0:7]
+                low_level_a[7:14] = a[7:14]
+            elif self._config.control_degrees == '3dpos+3drot+select+connect':
+                low_level_a[0:7] = a[0:7]
+                low_level_a[7:14] = a[7:14]
+                low_level_a[14] = a[14]
             elif self._config.control_degrees == '3d':
                 raise NotImplementedError
             elif self._config.control_degrees == '3d+rot':
@@ -126,6 +149,10 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                 low_level_a[2:6] = 0
                 low_level_a[9:13] = 0
                 low_level_a[14] = 0
+            elif self._config.control_degrees == '3dpos+3drot+select':
+                low_level_a[14] = 0
+            elif self._config.control_degrees == '3dpos+3drot+select+connect':
+                pass
             else:
                 raise NotImplementedError
 
@@ -163,6 +190,8 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         cursor2_latch_dist = np.linalg.norm(cursor2_ob[3] - cursor2_goal[3])
         obj1_xyz_dist = np.linalg.norm(obj1_ob[:3] - obj1_goal[:3])
         obj2_xyz_dist = np.linalg.norm(obj2_ob[:3] - obj2_goal[:3])
+        obj1_quat_dist = np.linalg.norm(obj1_ob[3:7] - obj1_goal[3:7])
+        obj2_quat_dist = np.linalg.norm(obj2_ob[3:7] - obj2_goal[3:7])
         state_distance = np.linalg.norm(state_ob - self._state_goal)
 
         info = dict(
@@ -185,6 +214,10 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             obj1_xyz_dist=obj1_xyz_dist,
             obj2_xyz_dist=obj2_xyz_dist,
             obj_xyz_dist=obj1_xyz_dist + obj2_xyz_dist,
+
+            obj1_quat_dist=obj1_quat_dist,
+            obj2_quat_dist=obj2_quat_dist,
+            obj_quat_dist=obj1_quat_dist + obj2_quat_dist,
 
             state_distance=state_distance,
         )
@@ -209,12 +242,25 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             xpos((float * 3) * n_obj): x,y,z position of the objects in world frame
             xquat((float * 4) * n_obj): quaternion of the objects
         """
-        if self._config.fixed_reset:
+        if self._config.reset_type=='fixed':
             pos_init = [[0.3, 0.3, 0.05], [-0.3, 0.3, 0.05]]
             quat_init = [[1, 0, 0, 0], [1, 0, 0, 0]]
-            return pos_init, quat_init
+        elif self._config.reset_type=='var_2dpos':
+            pos_init, _ = self.mujoco_model.place_objects()
+            quat_init = []
+            for i, body in enumerate(self._object_names):
+                rotate = self._rng.randint(0, 10, size=3)
+                quat_init.append(list(T.euler_to_quat(rotate)))
+        elif self._config.reset_type=='var_2dpos+var_1drot':
+            pos_init, _ = self.mujoco_model.place_objects()
+            quat_init = []
+            for i, body in enumerate(self._object_names):
+                rotate = self._rng.randint([0, 0, 0], [1, 1, 360], size=3)
+                quat_init.append(list(T.euler_to_quat(rotate)))
         else:
-            return super()._place_objects()
+            raise NotImplementedError
+
+        return pos_init, quat_init
 
     def _initialize_robot_pos(self):
         """

@@ -237,7 +237,9 @@ class FurnitureEnv(metaclass=EnvMeta):
 
         if self._agent_type == 'Cursor':
             self._step_discrete(a)
+            # self.render('rgb_array') ### added by Soroush
             self._do_simulation(None)
+            # self.render('rgb_array')
 
         elif self._agent_type in ['Sawyer', 'Baxter'] and self._control_type == 'ik':
             self._step_continuous(a)
@@ -478,10 +480,22 @@ class FurnitureEnv(metaclass=EnvMeta):
                 new_pos, new_rot = \
                     T.transform_to_target_quat(qpos_base, self._get_qpos(obj_name), target_quat)
                 new_pos = new_pos + move_offset
+                # print(new_pos - qpos_base[:3])
+                # print(new_rot - qpos_base[3:])
                 self._set_qpos(obj_name, new_pos, new_rot)
 
         if self._is_inside(obj):
-            return True
+            collision = False
+            for i, obj_name in enumerate(self._object_names):
+                if obj_name != obj and self.on_collision(obj, obj_name):
+                    # print("collision between {} and {}".format(obj, obj_name))
+                    collision = True
+                    break
+            if not self._config.preempt_collisions or not collision:
+                return True
+
+        # if self._is_inside(obj):
+        #     return True
 
         for obj_name, pos_rot in old_pos_rot.items():
             self._set_qpos(obj_name, pos_rot[:3], pos_rot[3:])
@@ -603,17 +617,17 @@ class FurnitureEnv(metaclass=EnvMeta):
         body1 = self.sim.model.body_id2name(body1_id)
         body2 = self.sim.model.body_id2name(body2_id)
 
-        # remove collision
-        group1 = self._find_group(body1)
-        group2 = self._find_group(body2)
-        for geom_id, body_id in enumerate(self.sim.model.geom_bodyid):
-            body_name = self.sim.model.body_names[body_id]
-            if body_name in self._object_names:
-                group = self._find_group(body_name)
-                if group in [group1, group2]:
-                    if self.sim.model.geom_contype[geom_id] != 0:
-                        self.sim.model.geom_contype[geom_id] = (1 << 30) - 1 - (1 << (group1 + 1))
-                        self.sim.model.geom_conaffinity[geom_id] = (1 << (group1 + 1))
+        # # remove collision
+        # group1 = self._find_group(body1)
+        # group2 = self._find_group(body2)
+        # for geom_id, body_id in enumerate(self.sim.model.geom_bodyid):
+        #     body_name = self.sim.model.body_names[body_id]
+        #     if body_name in self._object_names:
+        #         group = self._find_group(body_name)
+        #         if group in [group1, group2]:
+        #             if self.sim.model.geom_contype[geom_id] != 0:
+        #                 self.sim.model.geom_contype[geom_id] = (1 << 30) - 1 - (1 << (group1 + 1))
+        #                 self.sim.model.geom_conaffinity[geom_id] = (1 << (group1 + 1))
 
         # align site
         self._align_connectors(site1, site2, gravity=self._gravity_compensation)
@@ -680,6 +694,7 @@ class FurnitureEnv(metaclass=EnvMeta):
                     sites1.append((j, site))
                 if self.sim.model.site_bodyid[j] in body2_ids:
                     sites2.append((j, site))
+
 
         if len(sites1) == 0 or len(sites2) == 0:
             return False
@@ -1321,7 +1336,7 @@ class FurnitureEnv(metaclass=EnvMeta):
                 import furniture.env.models
                 from furniture.env.controllers import SawyerIKController
                 self._controller = SawyerIKController(
-                    bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
+                    bullet_data_path=os.path.join(furniture.env.models.assets_root, "bullet_data"),
                     robot_jpos_getter=self._robot_jpos_getter,
                 )
 
@@ -1329,7 +1344,7 @@ class FurnitureEnv(metaclass=EnvMeta):
                 import furniture.env.models
                 from furniture.env.controllers import BaxterIKController
                 self._controller = BaxterIKController(
-                    bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
+                    bullet_data_path=os.path.join(furniture.env.models.assets_root, "bullet_data"),
                     robot_jpos_getter=self._robot_jpos_getter,
                 )
 
@@ -1719,9 +1734,9 @@ class FurnitureEnv(metaclass=EnvMeta):
                     else:
                         action = np.hstack([action[:6], np.zeros(6), [flag[0], flag[1], action[7]]])
 
-            print("ac:", action)
+            # print("ac:", action)
             ob, reward, done, info = self.step(action)
-            print(ob["robot_ob"])
+            # print(ob["robot_ob"])
             if config.debug:
                 print('Action:', action)
 
