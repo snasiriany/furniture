@@ -76,8 +76,8 @@ class FurnitureCursorEnv(FurnitureEnv):
         connect_reward = reward - prev_reward
         info['reward_connect'] = connect_reward
 
-        if self._success:
-            print('Success!')
+        # if self._success:
+        #     print('Success!')
 
         reward = connect_reward
 

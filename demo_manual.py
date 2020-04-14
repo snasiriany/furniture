@@ -112,6 +112,8 @@ def main(args):
     # args.project_dist = -np.inf
 
     args.num_connect_steps = 0
+    args.num_connected_ob = True
+    args.num_connected_reward_scale = 5.0
 
     print()
     print("Creating environment (robot: {}, furniture: {}, background: {})".format(

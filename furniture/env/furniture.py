@@ -825,16 +825,16 @@ class FurnitureEnv(metaclass=EnvMeta):
                 is_rot_forward_aligned:
             return True
 
-        # if self._debug:
-        if pos_dist >= self._env_config['pos_dist']:
-            print('(connect) two parts are too far ({} >= {})'.format(pos_dist, self._env_config['pos_dist']))
-        elif rot_dist_up <= self._env_config['rot_dist_up']:
-            print('(connect) misaligned ({} <= {})'.format(rot_dist_up, self._env_config['rot_dist_up']))
-        elif not is_rot_forward_aligned:
-            print('(connect) aligned, but rotate a connector ({} <= {})'.format(max_rot_dist_forward, self._env_config['rot_dist_forward']))
-        else:
-            print('(connect) misaligned. move connectors to align the axis')
-        # return False
+        if self._debug:
+            if pos_dist >= self._env_config['pos_dist']:
+                print('(connect) two parts are too far ({} >= {})'.format(pos_dist, self._env_config['pos_dist']))
+            elif rot_dist_up <= self._env_config['rot_dist_up']:
+                print('(connect) misaligned ({} <= {})'.format(rot_dist_up, self._env_config['rot_dist_up']))
+            elif not is_rot_forward_aligned:
+                print('(connect) aligned, but rotate a connector ({} <= {})'.format(max_rot_dist_forward, self._env_config['rot_dist_forward']))
+            else:
+                print('(connect) misaligned. move connectors to align the axis')
+        return False
 
     def _move_objects_target(self, obj, target_pos, target_quat, gravity=1):
         """
@@ -1036,6 +1036,9 @@ class FurnitureEnv(metaclass=EnvMeta):
             state['object_ob'] = np.concatenate(
                 [x.ravel() for _, x in obj_states.items()]
             )
+
+        if "num_connected_ob" in self._config and self._config.num_connected_ob:
+            state['num_connected_ob'] = np.array([self._num_connected])
 
         # part ids
         if self._subtask_ob:
@@ -1736,7 +1739,7 @@ class FurnitureEnv(metaclass=EnvMeta):
 
             # print("ac:", action)
             ob, reward, done, info = self.step(action)
-            # print(ob["robot_ob"])
+            # print(ob["num_connected_ob"])
             if config.debug:
                 print('Action:', action)
 

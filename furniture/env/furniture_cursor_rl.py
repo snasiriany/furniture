@@ -106,6 +106,8 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             raise NotImplementedError
 
         self._state_goal = np.concatenate((robot_goal, object_goal))
+        if self._config.num_connected_ob:
+            self._state_goal = np.concatenate((self._state_goal, np.zeros(1)))
 
         return obs
 
@@ -170,8 +172,8 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         obs = self._get_obs()
         cursor1_ob = np.concatenate((obs["robot_ob"][0:3], obs["robot_ob"][6:7]))
         cursor2_ob = np.concatenate((obs["robot_ob"][3:6], obs["robot_ob"][7:8]))
-        obj1_ob = obs["object_ob"][:7]
-        obj2_ob = obs["object_ob"][7:]
+        obj1_ob = obs["object_ob"][0:7]
+        obj2_ob = obs["object_ob"][7:14]
 
         cursor1_goal = np.concatenate((self._state_goal[0:3], self._state_goal[6:7]))
         cursor2_goal = np.concatenate((self._state_goal[3:6], self._state_goal[7:8]))
@@ -179,6 +181,8 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         obj2_goal = self._state_goal[15:22]
 
         state_ob = np.concatenate((obs["robot_ob"], obs["object_ob"]))
+        if self._config.num_connected_ob:
+            state_ob = np.concatenate((state_ob, obs["num_connected_ob"]))
 
         cursor1_obj1_dist = np.linalg.norm(cursor1_ob[:3] - obj1_ob[:3])
         cursor2_obj2_dist = np.linalg.norm(cursor2_ob[:3] - obj2_ob[:3])
@@ -221,6 +225,9 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
 
             state_distance=state_distance,
         )
+
+        if self._config.num_connected_ob:
+            info["num_connected"] = obs["num_connected_ob"]
 
         if action is not None:
             info["action_mag_mean"] = np.mean(np.abs(action))
@@ -294,6 +301,12 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             dist = np.linalg.norm(state[:,:8] - goal[:,:8], axis=1)
         elif self._config.reward_type == 'object_distance':
             dist = np.linalg.norm(state[:,8:22] - goal[:,8:22], axis=1)
+        elif self._config.reward_type == 'object1_distance':
+            dist = np.linalg.norm(state[:,8:15] - goal[:,8:15], axis=1)
+        elif self._config.reward_type == 'object1_distance+num_connected':
+            assert self._config.num_connected_ob
+            num_connected_rew = np.linalg.norm(state[:,22:23] - goal[:,22:23], axis=1) * self._config.num_connected_reward_scale
+            dist = np.linalg.norm(state[:,8:15] - goal[:,8:15], axis=1) - num_connected_rew
         elif self._config.reward_type == 'object_xyz_distance':
             state_xyz = np.concatenate((state[:,8:11], state[:,15:18]), axis=1)
             goal_xyz = np.concatenate((goal[:, 8:11], goal[:, 15:18]), axis=1)
