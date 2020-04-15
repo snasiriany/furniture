@@ -28,11 +28,11 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         assert self._control_type == 'ik'
         if self._config.tight_action_space:
             move = rotate = select = connect = 0
-            if self._config.control_degrees == '2d':
+            if self._config.control_degrees == '2dpos':
                 move = 2
-            elif self._config.control_degrees == '3d':
+            elif self._config.control_degrees == '3dpos':
                 move = 3
-            elif self._config.control_degrees == '3d+rot':
+            elif self._config.control_degrees == '3dpos+3drot':
                 move = 3
                 rotate = 3
             elif self._config.control_degrees == '3dpos+3drot+select':
@@ -44,7 +44,7 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                 rotate = 3
                 select = 1
                 connect = 1
-            elif self._config.control_degrees == '2d+select':
+            elif self._config.control_degrees == '2dpos+select':
                 move = 2
                 select = 1
             else:
@@ -114,10 +114,10 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
     def _step(self, a):
         if self._config.tight_action_space:
             low_level_a = np.zeros(super().dof)
-            if self._config.control_degrees == '2d':
+            if self._config.control_degrees == '2dpos':
                 low_level_a[0:2] = a[0:2]
                 low_level_a[7:9] = a[2:4]
-            elif self._config.control_degrees == '2d+select':
+            elif self._config.control_degrees == '2dpos+select':
                 low_level_a[0:2] = a[0:2]
                 low_level_a[7:9] = a[2:4]
                 low_level_a[6] = a[4]
@@ -129,28 +129,31 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                 low_level_a[0:7] = a[0:7]
                 low_level_a[7:14] = a[7:14]
                 low_level_a[14] = a[14]
-            elif self._config.control_degrees == '3d':
+            elif self._config.control_degrees == '3dpos':
                 raise NotImplementedError
-            elif self._config.control_degrees == '3d+rot':
+            elif self._config.control_degrees == '3dpos+3drot':
                 raise NotImplementedError
             else:
                 raise NotImplementedError
         else:
             low_level_a = a.copy()
-            if self._config.control_degrees == '2d':
+            if self._config.control_degrees == '2dpos':
                 low_level_a[2:7] = 0
                 low_level_a[9:15] = 0
-            elif self._config.control_degrees == '3d':
+            elif self._config.control_degrees == '3dpos':
                 low_level_a[3:7] = 0
                 low_level_a[10:15] = 0
-            elif self._config.control_degrees == '3d+rot':
+            elif self._config.control_degrees == '3dpos+3drot':
                 low_level_a[6] = 0
                 low_level_a[13] = 0
                 low_level_a[14] = 0
-            elif self._config.control_degrees == '2d+select':
+            elif self._config.control_degrees == '2dpos+select':
                 low_level_a[2:6] = 0
                 low_level_a[9:13] = 0
                 low_level_a[14] = 0
+            elif self._config.control_degrees == '2dpos+select+connect':
+                low_level_a[2:6] = 0
+                low_level_a[9:13] = 0
             elif self._config.control_degrees == '3dpos+3drot+select':
                 low_level_a[14] = 0
             elif self._config.control_degrees == '3dpos+3drot+select+connect':
@@ -258,6 +261,16 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             for i, body in enumerate(self._object_names):
                 rotate = self._rng.randint(0, 10, size=3)
                 quat_init.append(list(T.euler_to_quat(rotate)))
+        elif self._config.reset_type=='var_2dpos+connectors_near':
+            pos_init, _ = self.mujoco_model.place_objects()
+            pos_init[1] = pos_init[0].copy()
+            offset1 = [0.4, 0, 0]
+            offset2 = np.random.uniform([-0.1, -0.1, 0], [0.1, 0.1, 0])
+            pos_init[1] = [x + y + z for x, y, z in zip(pos_init[1], offset1, offset2)]
+            quat_init = []
+            for i, body in enumerate(self._object_names):
+                rotate = self._rng.randint(0, 10, size=3)
+                quat_init.append(list(T.euler_to_quat(rotate)))
         elif self._config.reset_type=='var_2dpos+var_1drot':
             pos_init, _ = self.mujoco_model.place_objects()
             quat_init = []
@@ -305,8 +318,12 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             dist = np.linalg.norm(state[:,8:15] - goal[:,8:15], axis=1)
         elif self._config.reward_type == 'object1_distance+num_connected':
             assert self._config.num_connected_ob
-            num_connected_rew = np.linalg.norm(state[:,22:23] - goal[:,22:23], axis=1) * self._config.num_connected_reward_scale
+            num_connected_rew = state[:, 22] * self._config.num_connected_reward_scale
             dist = np.linalg.norm(state[:,8:15] - goal[:,8:15], axis=1) - num_connected_rew
+        elif self._config.reward_type == 'object1_xyz_distance+num_connected':
+            assert self._config.num_connected_ob
+            num_connected_rew = state[:, 22] * self._config.num_connected_reward_scale
+            dist = np.linalg.norm(state[:,8:11] - goal[:,8:11], axis=1) - num_connected_rew
         elif self._config.reward_type == 'object_xyz_distance':
             state_xyz = np.concatenate((state[:,8:11], state[:,15:18]), axis=1)
             goal_xyz = np.concatenate((goal[:, 8:11], goal[:, 15:18]), axis=1)

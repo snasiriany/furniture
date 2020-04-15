@@ -1024,14 +1024,18 @@ class FurnitureEnv(metaclass=EnvMeta):
         if self._object_ob:
             obj_states = OrderedDict()
             for i, obj_name in enumerate(self._object_names):
-                if i in [self._subtask_part1, self._subtask_part2]:
-                    obj_pos = self._get_pos(obj_name)
-                    obj_quat = self._get_quat(obj_name)
-                    obj_states["{}_pos".format(obj_name)] = obj_pos
-                    obj_states["{}_quat".format(obj_name)] = obj_quat
+                # if i in [self._subtask_part1, self._subtask_part2]:
+                #     obj_pos = self._get_pos(obj_name)
+                #     obj_quat = self._get_quat(obj_name)
+                #     obj_states["{}_pos".format(obj_name)] = obj_pos
+                #     obj_states["{}_quat".format(obj_name)] = obj_quat
+                obj_pos = self._get_pos(obj_name)
+                obj_quat = self._get_quat(obj_name)
+                obj_states["{}_pos".format(obj_name)] = obj_pos
+                obj_states["{}_quat".format(obj_name)] = obj_quat
 
-            if self._subtask_part1 == -1:
-                obj_states["dummy"] = np.zeros(14)
+            # if self._subtask_part1 == -1:
+            #     obj_states["dummy"] = np.zeros(14)
 
             state['object_ob'] = np.concatenate(
                 [x.ravel() for _, x in obj_states.items()]
