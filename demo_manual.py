@@ -54,9 +54,9 @@ def main(args):
         print('{}: {}'.format(i, furniture_name))
     print()
     try:
-        # s = input("Choose a furniture model (enter a number from 0 to {}): ".format(len(furniture_names) - 1))
-        # furniture_id = int(s)
-        furniture_id=0
+        s = input("Choose a furniture model (enter a number from 0 to {}): ".format(len(furniture_names) - 1))
+        furniture_id = int(s)
+        # furniture_id=0
         furniture_name = furniture_names[furniture_id]
     except:
         print("Input is not valid. Use 0 by default.")
@@ -84,7 +84,8 @@ def main(args):
     # env_name = 'Furniture{}Env'.format(agent_name)
     env_name = 'FurnitureCursorRLEnv'
     args.env = env_name
-    args.furniture_id = furniture_id
+    # args.furniture_id = furniture_id
+    args.furniture_name = furniture_name
     args.background = background_name
 
     ### added by Soroush ###
@@ -93,8 +94,8 @@ def main(args):
 
     # args.fixed_reset = False
     args.tight_action_space = False
-    args.control_degrees = '2dpos+select+connect'
-    # args.control_degrees = '3dpos+3drot+select+connect'
+    # args.control_degrees = '2dpos+select+connect'
+    args.control_degrees = '3dpos+3drot+select+connect'
     args.task_type = 'connect' #'select+move'
     # args.task_type = 'select+move'
     # args.task_type = "reach+select+move"
@@ -102,7 +103,8 @@ def main(args):
     # args.fixed_goal = False
     args.preempt_collisions = True
 
-    args.reset_type = 'var_2dpos+connectors_near'
+    args.reset_type = 'var_2dpos'
+    # args.reset_type = 'var_2dpos+connectors_near'
     # args.reset_type = 'var_2dpos+var_1drot'
     args.goal_type = 'reset'
 

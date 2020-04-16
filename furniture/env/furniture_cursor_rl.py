@@ -203,6 +203,10 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         obj2_quat_dist = np.linalg.norm(obj2_ob[3:7] - obj2_goal[3:7])
         state_distance = np.linalg.norm(state_ob - self._state_goal)
 
+        bv = 0.40
+        obj1_inbounds = np.all((obj1_ob[:3] >= [-bv, -bv, -bv]) & (obj1_ob[:3] <= [bv, bv, bv])).astype(float)
+        obj2_inbounds = np.all((obj2_ob[:3] >= [-bv, -bv, -bv]) & (obj2_ob[:3] <= [bv, bv, bv])).astype(float)
+
         info = dict(
             cursor1_obj1_dist=cursor1_obj1_dist,
             cursor2_obj2_dist=cursor2_obj2_dist,
@@ -229,6 +233,9 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             obj_quat_dist=obj1_quat_dist + obj2_quat_dist,
 
             state_distance=state_distance,
+
+            obj1_inbounds=obj1_inbounds,
+            obj2_inbounds=obj2_inbounds,
         )
 
         if self._config.num_connected_ob:
@@ -290,8 +297,13 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         """
         if "reach" not in self._config.task_type:
             for i, obj_name in enumerate(self._object_names):
-                obj_pos = self._get_pos(obj_name)
-                obj_quat = self._get_quat(obj_name)
+                body_ids = [self.sim.model.body_name2id(obj_name)]
+                sites = []
+                for j, site in enumerate(self.sim.model.site_names):
+                    if 'conn_site' in site:
+                        if self.sim.model.site_bodyid[j] in body_ids:
+                            sites.append(site)
+                site_pos = self._site_xpos_xquat(sites[0])[0:3]
 
                 if i == 0:
                     cursor_name = 'cursor0'
@@ -300,7 +312,9 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                 else:
                     raise NotImplementedError
 
-                self._set_pos(cursor_name, [obj_pos[0], obj_pos[1], self._move_speed / 2])
+                # obj_pos = self._get_pos(obj_name)
+                # self._set_pos(cursor_name, [site_pos[0], site_pos[1], self._move_speed / 2])
+                self._set_pos(cursor_name, [site_pos[0], site_pos[1], max(self._move_speed / 2, site_pos[2])])
         else:
             self._set_pos('cursor0', [-0.2, 0., self._move_speed / 2])
             self._set_pos('cursor1', [0.2, 0., self._move_speed / 2])

@@ -1077,7 +1077,8 @@ class FurnitureEnv(metaclass=EnvMeta):
         if self._furniture_id is None or (self._furniture_id != furniture_id and furniture_id is not None):
             # construct mujoco xml for furniture_id
             if furniture_id is None:
-                self._furniture_id = self._config.furniture_id
+                # self._furniture_id = self._config.furniture_id
+                self._furniture_id = furniture_name2id[self._config.furniture_name]
             else:
                 self._furniture_id = furniture_id
             self._reset_internal()
@@ -1743,7 +1744,7 @@ class FurnitureEnv(metaclass=EnvMeta):
 
             # print("ac:", action)
             ob, reward, done, info = self.step(action)
-            print(ob["object_ob"][0:3], ob["object_ob"][7:10])
+            # print(ob["object_ob"].shape)
             # print(ob["num_connected_ob"])
             if config.debug:
                 print('Action:', action)
