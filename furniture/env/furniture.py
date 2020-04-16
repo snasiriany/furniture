@@ -1743,6 +1743,7 @@ class FurnitureEnv(metaclass=EnvMeta):
 
             # print("ac:", action)
             ob, reward, done, info = self.step(action)
+            print(ob["object_ob"][0:3], ob["object_ob"][7:10])
             # print(ob["num_connected_ob"])
             if config.debug:
                 print('Action:', action)

@@ -93,11 +93,11 @@ def main(args):
 
     # args.fixed_reset = False
     args.tight_action_space = False
-    # args.control_degrees = '2d+select'
-    args.control_degrees = '3dpos+3drot+select+connect'
-    args.task_type = 'move_obj' #'latch+move_obj'
-    # args.task_type = 'latch+move_obj'
-    # args.task_type = "reach+latch+move_obj"
+    args.control_degrees = '2dpos+select+connect'
+    # args.control_degrees = '3dpos+3drot+select+connect'
+    args.task_type = 'connect' #'select+move'
+    # args.task_type = 'select+move'
+    # args.task_type = "reach+select+move"
     args.reward_type = 'object1_xyz_distance'
     # args.fixed_goal = False
     args.preempt_collisions = True

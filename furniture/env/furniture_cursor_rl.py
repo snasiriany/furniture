@@ -20,6 +20,27 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             if k in self._config:
                 self._env_config[k] = getattr(self._config, k)
 
+        assert self._config.task_type in [
+            # "reach",
+            # "reach+select",
+            
+            "reach+select+move",
+            "reach+move",
+            "select+move",
+            "move",
+
+            "reach+select+connect+move",
+            "reach+select+connect",
+            "select+connect",
+            "reach+connect",
+            "reach+connect+move",
+            "connect",
+            "select+connect+move",
+            "connect+move",
+        ]
+        
+        assert "connect" not in self._config.reward_type
+
     @property
     def dof(self):
         """
@@ -57,23 +78,20 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
 
     def reset(self, furniture_id=None, background=None):
         ### sample goal by finding valid configuration in sim ###
-        if self._config.task_type in ["reach+latch+move_obj", "latch+move_obj", "move_obj"]:
-            if self._config.goal_type == 'fixed':
-                object_goal = np.zeros(14)
-                object_goal[0:3] = [0.3, 0.3, 0.05]
-                object_goal[7:10] = [-0.3, 0.3, 0.05]
-                object_goal[3:7] = [1, 0, 0, 0]
-                object_goal[10:14] = [1, 0, 0, 0]
-            elif self._config.goal_type == 'reset':
-                object_goal = super().reset(furniture_id=furniture_id, background=background)["object_ob"].copy()
-            else:
-                raise NotImplementedError
+        if self._config.goal_type == 'fixed':
+            object_goal = np.zeros(14)
+            object_goal[0:3] = [0.3, 0.3, 0.05]
+            object_goal[7:10] = [-0.3, 0.3, 0.05]
+            object_goal[3:7] = [1, 0, 0, 0]
+            object_goal[10:14] = [1, 0, 0, 0]
+        elif self._config.goal_type == 'reset':
+            object_goal = super().reset(furniture_id=furniture_id, background=background)["object_ob"].copy()
         else:
-            object_goal = None # defer setting goal to later
+            raise NotImplementedError
 
         ### reset the env
         obs = super().reset(furniture_id=furniture_id, background=background)
-        if self._config.task_type in ["move_obj"]:
+        if "select" not in self._config.task_type:
             low_level_a = np.zeros(15)
             low_level_a[6] = 1
             low_level_a[13] = 1
@@ -84,26 +102,10 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         object_ob = obs['object_ob'].copy()
 
         robot_goal = np.zeros(robot_ob.size)
-
-        if self._config.task_type == "reach_obj":
-            robot_goal[0:3] = object_ob[0:3]
-            robot_goal[3:6] = object_ob[7:10]
-            robot_goal[6] = 0
-            robot_goal[7] = 0
-            object_goal = object_ob
-        elif self._config.task_type in ["reach_obj+latch", "latch"]:
-            robot_goal[0:3] = object_ob[0:3]
-            robot_goal[3:6] = object_ob[7:10]
-            robot_goal[6] = 1
-            robot_goal[7] = 1
-            object_goal = object_ob
-        elif self._config.task_type in ["reach+latch+move_obj", "latch+move_obj", "move_obj"]:
-            robot_goal[0:3] = object_goal[0:3]
-            robot_goal[3:6] = object_goal[7:10]
-            robot_goal[6] = 1
-            robot_goal[7] = 1
-        else:
-            raise NotImplementedError
+        robot_goal[0:3] = object_goal[0:3]
+        robot_goal[3:6] = object_goal[7:10]
+        robot_goal[6] = 1
+        robot_goal[7] = 1
 
         self._state_goal = np.concatenate((robot_goal, object_goal))
         if self._config.num_connected_ob:
@@ -161,7 +163,7 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             else:
                 raise NotImplementedError
 
-        if self._config.task_type in ["move_obj"]:
+        if "select" not in self._config.task_type:
             low_level_a[6] = 1
             low_level_a[13] = 1
 
@@ -189,12 +191,12 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
 
         cursor1_obj1_dist = np.linalg.norm(cursor1_ob[:3] - obj1_ob[:3])
         cursor2_obj2_dist = np.linalg.norm(cursor2_ob[:3] - obj2_ob[:3])
-        cursor1_latched = cursor1_ob[3]
-        cursor2_latched = cursor2_ob[3]
+        cursor1_selected = cursor1_ob[3]
+        cursor2_selected = cursor2_ob[3]
         cursor1_xyz_dist = np.linalg.norm(cursor1_ob[:3] - cursor1_goal[:3])
         cursor2_xyz_dist = np.linalg.norm(cursor2_ob[:3] - cursor2_goal[:3])
-        cursor1_latch_dist = np.linalg.norm(cursor1_ob[3] - cursor1_goal[3])
-        cursor2_latch_dist = np.linalg.norm(cursor2_ob[3] - cursor2_goal[3])
+        cursor1_select_dist = np.linalg.norm(cursor1_ob[3] - cursor1_goal[3])
+        cursor2_select_dist = np.linalg.norm(cursor2_ob[3] - cursor2_goal[3])
         obj1_xyz_dist = np.linalg.norm(obj1_ob[:3] - obj1_goal[:3])
         obj2_xyz_dist = np.linalg.norm(obj2_ob[:3] - obj2_goal[:3])
         obj1_quat_dist = np.linalg.norm(obj1_ob[3:7] - obj1_goal[3:7])
@@ -206,17 +208,17 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             cursor2_obj2_dist=cursor2_obj2_dist,
             cursor_obj_dist=cursor1_obj1_dist + cursor2_obj2_dist,
 
-            cursor1_latched=cursor1_latched,
-            cursor2_latched=cursor2_latched,
-            cursor_latched=cursor1_latched + cursor2_latched,
+            cursor1_selected=cursor1_selected,
+            cursor2_selected=cursor2_selected,
+            cursor_selected=cursor1_selected + cursor2_selected,
 
             cursor1_xyz_dist=cursor1_xyz_dist,
             cursor2_xyz_dist=cursor2_xyz_dist,
             cursor_xyz_dist=cursor1_xyz_dist + cursor2_xyz_dist,
 
-            cursor1_latch_dist=cursor1_latch_dist,
-            cursor2_latch_dist=cursor2_latch_dist,
-            cursor_latch_dist=cursor1_latch_dist + cursor2_latch_dist,
+            cursor1_select_dist=cursor1_select_dist,
+            cursor2_select_dist=cursor2_select_dist,
+            cursor_select_dist=cursor1_select_dist + cursor2_select_dist,
 
             obj1_xyz_dist=obj1_xyz_dist,
             obj2_xyz_dist=obj2_xyz_dist,
@@ -286,7 +288,7 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         """
         Initializes robot posision with random noise perturbation
         """
-        if self._config.task_type in ["latch", "latch+move_obj", "move_obj"]:
+        if "reach" not in self._config.task_type:
             for i, obj_name in enumerate(self._object_names):
                 obj_pos = self._get_pos(obj_name)
                 obj_quat = self._get_quat(obj_name)
@@ -316,25 +318,25 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             dist = np.linalg.norm(state[:,8:22] - goal[:,8:22], axis=1)
         elif self._config.reward_type == 'object1_distance':
             dist = np.linalg.norm(state[:,8:15] - goal[:,8:15], axis=1)
-        elif self._config.reward_type == 'object1_distance+num_connected':
-            assert self._config.num_connected_ob
-            num_connected_rew = state[:, 22] * self._config.num_connected_reward_scale
-            dist = np.linalg.norm(state[:,8:15] - goal[:,8:15], axis=1) - num_connected_rew
-        elif self._config.reward_type == 'object1_xyz_distance+num_connected':
-            assert self._config.num_connected_ob
-            num_connected_rew = state[:, 22] * self._config.num_connected_reward_scale
-            dist = np.linalg.norm(state[:,8:11] - goal[:,8:11], axis=1) - num_connected_rew
         elif self._config.reward_type == 'object_xyz_distance':
             state_xyz = np.concatenate((state[:,8:11], state[:,15:18]), axis=1)
             goal_xyz = np.concatenate((goal[:, 8:11], goal[:, 15:18]), axis=1)
             dist = np.linalg.norm(state_xyz - goal_xyz, axis=1)
         elif self._config.reward_type == 'object1_xyz_distance':
             dist = np.linalg.norm(state[:,8:11] - goal[:, 8:11], axis=1)
-        elif self._config.reward_type == 'object_distance+latch_distance':
+        elif self._config.reward_type == 'object1_xyz_in_bounds':
+            bv = 0.40
+            inbounds = np.all((state[:,8:11] >= [-bv, -bv, -bv]) & (state[:,8:11] <= [bv, bv, bv]), axis=1)
+            dist = -inbounds.astype(float)
+        elif self._config.reward_type == 'object_distance+select_distance':
             dist1 = np.linalg.norm(state[:,8:22] - goal[:,8:22], axis=1)
             dist2 = np.linalg.norm(state[:, 6:8] - goal[:, 6:8], axis=1)
             dist = dist1 + dist2
         else:
             raise NotImplementedError
+
+        if "connect" in self._config.task_type:
+            num_connected_rew = state[:, 22] * self._config.num_connected_reward_scale
+            dist = dist - num_connected_rew
 
         return -dist
