@@ -270,7 +270,7 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             for i, body in enumerate(self._object_names):
                 rotate = self._rng.randint(0, 10, size=3)
                 quat_init.append(list(T.euler_to_quat(rotate)))
-        elif self._config.reset_type=='var_2dpos+connectors_near':
+        elif self._config.reset_type=='var_2dpos+objs_near':
             pos_init, _ = self.mujoco_model.place_objects()
             pos_init[1] = pos_init[0].copy()
             offset1 = [0.4, 0, 0]
@@ -279,6 +279,16 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             quat_init = []
             for i, body in enumerate(self._object_names):
                 rotate = self._rng.randint(0, 10, size=3)
+                quat_init.append(list(T.euler_to_quat(rotate)))
+        elif self._config.reset_type=='var_2dpos+no_rot':
+            pos_init, _ = self.mujoco_model.place_objects()
+            pos_init[1] = pos_init[0].copy()
+            offset1 = [0.4, 0, 0]
+            offset2 = np.random.uniform([-0.1, -0.1, 0], [0.1, 0.1, 0])
+            pos_init[1] = [x + y + z for x, y, z in zip(pos_init[1], offset1, offset2)]
+            quat_init = []
+            for i, body in enumerate(self._object_names):
+                rotate = [0, 0, 0]
                 quat_init.append(list(T.euler_to_quat(rotate)))
         elif self._config.reset_type=='var_2dpos+var_1drot':
             pos_init, _ = self.mujoco_model.place_objects()
@@ -310,11 +320,12 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                 elif i == 1:
                     cursor_name = 'cursor1'
                 else:
-                    raise NotImplementedError
+                    cursor_name = None
 
                 # obj_pos = self._get_pos(obj_name)
                 # self._set_pos(cursor_name, [site_pos[0], site_pos[1], self._move_speed / 2])
-                self._set_pos(cursor_name, [site_pos[0], site_pos[1], max(self._move_speed / 2, site_pos[2])])
+                if cursor_name is not None:
+                    self._set_pos(cursor_name, [site_pos[0], site_pos[1], max(self._move_speed / 2, site_pos[2])])
         else:
             self._set_pos('cursor0', [-0.2, 0., self._move_speed / 2])
             self._set_pos('cursor1', [0.2, 0., self._move_speed / 2])

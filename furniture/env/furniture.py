@@ -487,7 +487,9 @@ class FurnitureEnv(metaclass=EnvMeta):
         if self._is_inside(obj):
             collision = False
             for i, obj_name in enumerate(self._object_names):
-                if obj_name != obj and self.on_collision(obj, obj_name):
+                if obj_name != obj and \
+                        self.on_collision(obj, obj_name) and \
+                        self._find_group(i) != self._find_group(self._object_name2id[obj]):
                     # print("collision between {} and {}".format(obj, obj_name))
                     collision = True
                     break
@@ -1742,7 +1744,6 @@ class FurnitureEnv(metaclass=EnvMeta):
                     else:
                         action = np.hstack([action[:6], np.zeros(6), [flag[0], flag[1], action[7]]])
 
-            # print("ac:", action)
             ob, reward, done, info = self.step(action)
             # print(ob["object_ob"].shape)
             # print(ob["num_connected_ob"])

@@ -103,9 +103,10 @@ def main(args):
     # args.fixed_goal = False
     args.preempt_collisions = True
 
-    args.reset_type = 'var_2dpos'
-    # args.reset_type = 'var_2dpos+connectors_near'
+    # args.reset_type = 'var_2dpos'
+    # args.reset_type = 'var_2dpos+objs_near'
     # args.reset_type = 'var_2dpos+var_1drot'
+    args.reset_type = 'var_2dpos+no_rot'
     args.goal_type = 'reset'
 
     args.pos_dist = 0.1,
