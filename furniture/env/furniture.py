@@ -84,6 +84,16 @@ class FurnitureEnv(metaclass=EnvMeta):
         self._pos_init = None
         self._quat_init = None
 
+        if 'obj_joint_type' in self._config:
+            self._obj_joint_type = self._config.obj_joint_type
+        else:
+            self._obj_joint_type = 'free'
+
+        if 'print_debug_info' in self._config:
+            self._print_debug_info = self._config.print_debug_info
+        else:
+            self._print_debug_info = False
+
         self._action_on = False
         self._load_demo = config.load_demo
         self._record_demo = config.record_demo
@@ -203,6 +213,7 @@ class FurnitureEnv(metaclass=EnvMeta):
             action = {key: val for ac_i in action for key, val in ac_i.items()}
         if isinstance(action, dict):
             action = np.concatenate([action[key] for key in self.action_space.shape.keys()])
+
         ob, reward, done, info = self._step(action)
         done, info, penalty = self._after_step(reward, done, info)
         if self._record_demo:
@@ -477,8 +488,13 @@ class FurnitureEnv(metaclass=EnvMeta):
         for i, obj_name in enumerate(self._object_names):
             if self._find_group(i) == self._find_group(part_idx):
                 old_pos_rot[obj_name] = self._get_qpos(obj_name)
-                new_pos, new_rot = \
-                    T.transform_to_target_quat(qpos_base, self._get_qpos(obj_name), target_quat)
+                if self._obj_joint_type == 'free':
+                    new_pos, new_rot = \
+                        T.transform_to_target_quat(qpos_base, self._get_qpos(obj_name), target_quat)
+                elif self._obj_joint_type == 'slide':
+                    new_pos, new_rot = self._get_qpos(obj_name)[:3], [0, 0, 0, 0]
+                else:
+                    raise NotImplementedError
                 new_pos = new_pos + move_offset
                 # print(new_pos - qpos_base[:3])
                 # print(new_rot - qpos_base[3:])
@@ -490,7 +506,8 @@ class FurnitureEnv(metaclass=EnvMeta):
                 if obj_name != obj and \
                         self.on_collision(obj, obj_name) and \
                         self._find_group(i) != self._find_group(self._object_name2id[obj]):
-                    # print("collision between {} and {}".format(obj, obj_name))
+                    if self._print_debug_info:
+                        print("collision between {} and {}".format(obj, obj_name))
                     collision = True
                     break
             if not self._config.preempt_collisions or not collision:
@@ -827,7 +844,7 @@ class FurnitureEnv(metaclass=EnvMeta):
                 is_rot_forward_aligned:
             return True
 
-        if self._debug:
+        if self._debug or self._print_debug_info:
             if pos_dist >= self._env_config['pos_dist']:
                 print('(connect) two parts are too far ({} >= {})'.format(pos_dist, self._env_config['pos_dist']))
             elif rot_dist_up <= self._env_config['rot_dist_up']:
@@ -854,8 +871,13 @@ class FurnitureEnv(metaclass=EnvMeta):
         qpos_base = self._get_qpos(obj)
         for i, obj_name in enumerate(self._object_names):
             if self._find_group(i) == self._find_group(obj_id):
-                new_pos, new_rot = \
-                    T.transform_to_target_quat(qpos_base, self._get_qpos(obj_name), target_quat)
+                if self._obj_joint_type == 'free':
+                    new_pos, new_rot = \
+                        T.transform_to_target_quat(qpos_base, self._get_qpos(obj_name), target_quat)
+                elif self._obj_joint_type == 'slide':
+                    new_pos, new_rot = self._get_qpos(obj_name)[:3], [0, 0, 0, 0]
+                else:
+                    raise NotImplementedError
                 new_pos = new_pos + translation
                 self._set_qpos(obj_name, new_pos, new_rot)
                 self._stop_object(obj_name, gravity=gravity)
@@ -1439,12 +1461,14 @@ class FurnitureEnv(metaclass=EnvMeta):
         """
         # task includes arena, robot, and objects of interest
         from furniture.env.models.tasks import FloorTask
+
         self.mujoco_model = FloorTask(
             self.mujoco_arena,
             self.mujoco_robot,
             self.mujoco_objects,
             self.mujoco_equality,
             self._rng,
+            obj_joint_type=self._obj_joint_type,
         )
 
     def save_demo(self, fname='test.pkl'):
@@ -1854,8 +1878,15 @@ class FurnitureEnv(metaclass=EnvMeta):
         """
         body_id = self.sim.model.body_name2id(obj_name)
         self.sim.data.xfrc_applied[body_id] = [0, 0, -gravity * self.sim.model.opt.gravity[-1] * self.sim.model.body_mass[body_id], 0, 0, 0]
-        qvel_addr = self.sim.model.get_joint_qvel_addr(obj_name)
-        self.sim.data.qvel[qvel_addr[0]:qvel_addr[1]] = [0] * (qvel_addr[1] - qvel_addr[0])
+        if self._obj_joint_type == 'free':
+            qvel_addr = self.sim.model.get_joint_qvel_addr(obj_name)
+            self.sim.data.qvel[qvel_addr[0]:qvel_addr[1]] = [0] * (qvel_addr[1] - qvel_addr[0])
+        elif self._obj_joint_type == 'slide':
+            for joint_name in [obj_name + postifx for postifx in ["_x", "_y", "_z"]]:
+                qvel_addr = self.sim.model.get_joint_qvel_addr(joint_name)
+                self.sim.data.qvel[qvel_addr] = 0
+        else:
+            raise NotImplementedError
 
     def _stop_objects(self, gravity=1):
         """
@@ -1875,8 +1906,15 @@ class FurnitureEnv(metaclass=EnvMeta):
         """
         body_id = self.sim.model.body_name2id(obj_name)
         self.sim.data.xfrc_applied[body_id] = [0, 0, -self.sim.model.opt.gravity[-1] * self.sim.model.body_mass[body_id], 0, 0, 0]
-        qvel_addr = self.sim.model.get_joint_qvel_addr(obj_name)
-        self.sim.data.qvel[qvel_addr[0]:qvel_addr[1]] = np.clip(self.sim.data.qvel[qvel_addr[0]:qvel_addr[1]], -0.2, 0.2)
+        if self._obj_joint_type == 'free':
+            qvel_addr = self.sim.model.get_joint_qvel_addr(obj_name)
+            self.sim.data.qvel[qvel_addr[0]:qvel_addr[1]] = np.clip(self.sim.data.qvel[qvel_addr[0]:qvel_addr[1]], -0.2, 0.2)
+        elif self._obj_joint_type == 'slide':
+            for joint_name in [obj_name + postifx for postifx in ["_x", "_y", "_z"]]:
+                qvel_addr = self.sim.model.get_joint_qvel_addr(joint_name)
+                self.sim.data.qvel[qvel_addr] = np.clip(self.sim.data.qvel[qvel_addr], -0.2, 0.2)
+        else:
+            raise NotImplementedError
 
     def _slow_objects(self):
         """
@@ -2099,25 +2137,61 @@ class FurnitureEnv(metaclass=EnvMeta):
         """
         Get the qpos of a geometry
         """
-        object_qpos = self.sim.data.get_joint_qpos(name)
+        if self._obj_joint_type == 'free':
+            object_qpos = self.sim.data.get_joint_qpos(name)
+        elif self._obj_joint_type == 'slide':
+            object_qpos = np.array([
+                self.sim.data.get_joint_qpos(name+"_x"),
+                self.sim.data.get_joint_qpos(name+"_y"),
+                self.sim.data.get_joint_qpos(name+"_z"),
+            ])
+
+            from furniture.env.mjcf_utils import string_to_array
+            object_qpos += string_to_array(self.mujoco_objects[name].worldbody.find("./body[@name='%s']" % name).get("pos"))
+
+        else:
+            raise NotImplementedError
         return object_qpos.copy()
 
     def _set_qpos(self, name, pos, rot=[1, 0, 0, 0]):
         """
         Set the qpos of a geom
         """
-        object_qpos = self.sim.data.get_joint_qpos(name)
-        assert object_qpos.shape == (7,)
-        object_qpos[:3] = pos
-        object_qpos[3:] = rot
-        self.sim.data.set_joint_qpos(name, object_qpos)
+        if self._obj_joint_type == 'free':
+            object_qpos = self.sim.data.get_joint_qpos(name)
+            assert object_qpos.shape == (7,)
+            object_qpos[:3] = pos
+            object_qpos[3:] = rot
+            self.sim.data.set_joint_qpos(name, object_qpos)
+        elif self._obj_joint_type == 'slide':
+            from furniture.env.mjcf_utils import string_to_array
+            import copy
+            pos = copy.deepcopy(pos)
+            pos -= string_to_array(self.mujoco_objects[name].worldbody.find("./body[@name='%s']" % name).get("pos"))
+
+
+            self.sim.data.set_joint_qpos(name+"_x", pos[0])
+            self.sim.data.set_joint_qpos(name+"_y", pos[1])
+            self.sim.data.set_joint_qpos(name+"_z", pos[2])
+        else:
+            raise NotImplementedError
 
     def _set_qpos0(self, name, qpos):
         """
         Set the qpos0
         """
-        qpos_addr = self.sim.model.get_joint_qpos_addr(name)
-        self.sim.model.qpos0[qpos_addr[0]:qpos_addr[1]] = qpos
+        if self._obj_joint_type == 'free':
+            qpos_addr = self.sim.model.get_joint_qpos_addr(name)
+            self.sim.model.qpos0[qpos_addr[0]:qpos_addr[1]] = qpos
+        elif self._obj_joint_type == 'slide':
+            # from furniture.env.mjcf_utils import string_to_array
+            # base_pos = string_to_array(self.mujoco_objects[name].worldbody.find("./body[@name='%s']" % name).get("pos"))
+            # for i, joint_name in enumerate([name + postifx for postifx in ["_x", "_y", "_z"]]):
+            #     qpos_addr = self.sim.model.get_joint_qpos_addr(joint_name)
+            #     self.sim.model.qpos0[qpos_addr] = qpos[i] - base_pos[i]
+            pass
+        else:
+            raise NotImplementedError
 
     def _set_color(self, name, color):
         """

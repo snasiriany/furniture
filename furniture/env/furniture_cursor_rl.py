@@ -156,6 +156,9 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             elif self._config.control_degrees == '2dpos+select+connect':
                 low_level_a[2:6] = 0
                 low_level_a[9:13] = 0
+            elif self._config.control_degrees == '3dpos+select+connect':
+                low_level_a[3:6] = 0
+                low_level_a[10:13] = 0
             elif self._config.control_degrees == '3dpos+3drot+select':
                 low_level_a[14] = 0
             elif self._config.control_degrees == '3dpos+3drot+select+connect':
@@ -352,6 +355,11 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         elif self._config.reward_type == 'object1_xyz_in_bounds':
             bv = 0.40
             inbounds = np.all((state[:,8:11] >= [-bv, -bv, -bv]) & (state[:,8:11] <= [bv, bv, bv]), axis=1)
+            dist = -inbounds.astype(float)
+        elif self._config.reward_type == 'object_xyz_in_bounds':
+            bv = 0.40
+            state_xyz = np.concatenate((state[:, 8:11], state[:, 15:18]), axis=1)
+            inbounds = np.all((state_xyz >= [-bv, -bv, -bv, -bv, -bv, -bv]) & (state_xyz <= [bv, bv, bv, bv, bv, bv]), axis=1)
             dist = -inbounds.astype(float)
         elif self._config.reward_type == 'object_distance+select_distance':
             dist1 = np.linalg.norm(state[:,8:22] - goal[:,8:22], axis=1)

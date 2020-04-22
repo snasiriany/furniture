@@ -12,7 +12,8 @@ class FloorTask(Task):
     arena, and the objetcts into a single MJCF model.
     """
 
-    def __init__(self, mujoco_arena, mujoco_robot, mujoco_objects, mujoco_equality, rng=None, initializer=None):
+    def __init__(self, mujoco_arena, mujoco_robot, mujoco_objects, mujoco_equality, rng=None, initializer=None,
+                 obj_joint_type='free'):
         """
         Args:
             mujoco_arena: MJCF model of robot workspace
@@ -21,6 +22,8 @@ class FloorTask(Task):
             initializer: placement sampler to initialize object positions.
         """
         super().__init__()
+
+        self._obj_joint_type = obj_joint_type
 
         self.merge_arena(mujoco_arena)
         self.merge_robot(mujoco_robot)
@@ -55,7 +58,14 @@ class FloorTask(Task):
             self.merge_asset(obj_mjcf)
             # Load object
             obj = obj_mjcf.get_collision(name=obj_name, site=True)
-            obj.append(new_joint(name=obj_name, type="free", damping="0.0001"))
+            if self._obj_joint_type == 'free':
+                obj.append(new_joint(name=obj_name, type="free", damping="0.0001"))
+            elif self._obj_joint_type == 'slide':
+                obj.append(new_joint(name=obj_name+"_x", type="slide", axis="1 0 0", damping="0.0001"))
+                obj.append(new_joint(name=obj_name+"_y", type="slide", axis="0 1 0", damping="0.0001"))
+                obj.append(new_joint(name=obj_name+"_z", type="slide", axis="0 0 1", damping="0.0001"))
+            else:
+                raise NotImplementedError
             self.objects.append(obj)
             self.worldbody.append(obj)
 
