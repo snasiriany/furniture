@@ -38,6 +38,11 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         
         assert "connect" not in self._config.reward_type
 
+        if "light_logging" in self._config:
+            self._light_logging = self._config.light_logging
+        else:
+            self._light_logging = False
+
     @property
     def dof(self):
         """
@@ -195,20 +200,23 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         cursor2_select_dist = np.linalg.norm(cursor2_ob[3] - cursor2_goal[3])
 
         info = dict(
-            cursor1_selected=cursor1_selected,
-            cursor2_selected=cursor2_selected,
             cursor_selected=cursor1_selected + cursor2_selected,
-
-            cursor1_xyz_dist=cursor1_xyz_dist,
-            cursor2_xyz_dist=cursor2_xyz_dist,
             cursor_xyz_dist=cursor1_xyz_dist + cursor2_xyz_dist,
-
-            cursor1_select_dist=cursor1_select_dist,
-            cursor2_select_dist=cursor2_select_dist,
             cursor_select_dist=cursor1_select_dist + cursor2_select_dist,
 
             state_distance=state_distance,
         )
+        if not self._light_logging:
+            info.update(dict(
+                cursor1_selected=cursor1_selected,
+                cursor2_selected=cursor2_selected,
+
+                cursor1_xyz_dist=cursor1_xyz_dist,
+                cursor2_xyz_dist=cursor2_xyz_dist,
+
+                cursor1_select_dist=cursor1_select_dist,
+                cursor2_select_dist=cursor2_select_dist,
+            ))
 
         obj_ob = obs["object_ob"]
         obj_goal = self._state_goal[8:8 + self.n_objects * 7]
@@ -223,8 +231,10 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                 (obj_ob[start_idx:start_idx + 3] >= [-bv, -bv, -bv]) & (obj_ob[start_idx:start_idx + 3] <= [bv, bv, bv])
             ).astype(float)
 
-            info['obj{}_xyz_dist'.format(i + 1)] = xyz_dist
-            info['obj{}_quat_dist'.format(i + 1)] = quat_dist
+            if not self._light_logging:
+                info['obj{}_xyz_dist'.format(i + 1)] = xyz_dist
+                info['obj{}_quat_dist'.format(i + 1)] = quat_dist
+
             info['obj{}_in_bounds'.format(i + 1)] = in_bounds
 
             obj_xyz_dist += xyz_dist
@@ -311,6 +321,12 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         Initializes robot posision with random noise perturbation
         """
         if "reach" not in self._config.task_type:
+            while True:
+                cursor0_idx, cursor1_idx = np.random.choice(self.n_objects, 2, replace=False)
+                if self._can_connect(self._object_names[cursor0_idx], self._object_names[cursor1_idx]):
+                    break
+
+
             for i, obj_name in enumerate(self._object_names):
                 body_ids = [self.sim.model.body_name2id(obj_name)]
                 sites = []
@@ -320,9 +336,9 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                             sites.append(site)
                 site_pos = self._site_xpos_xquat(sites[0])[0:3]
 
-                if i == 0:
+                if i == cursor0_idx:
                     cursor_name = 'cursor0'
-                elif i == 1:
+                elif i == cursor1_idx:
                     cursor_name = 'cursor1'
                 else:
                     cursor_name = None
@@ -360,7 +376,7 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             bv = 0.40
             inbounds = np.all((state[:,8:11] >= [-bv, -bv, -bv]) & (state[:,8:11] <= [bv, bv, bv]), axis=1)
             dist = -inbounds.astype(float)
-        elif self._config.reward_type == 'object_xyz_in_bounds':
+        elif self._config.reward_type == 'object_in_bounds':
             bv = 0.40
             dist = np.zeros(len(state))
             for i in range(self.n_objects):

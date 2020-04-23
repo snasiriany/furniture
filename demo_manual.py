@@ -96,7 +96,7 @@ def main(args):
     args.tight_action_space = False
     # args.control_degrees = '3dpos+select+connect'
     args.control_degrees = '3dpos+3drot+select+connect'
-    args.task_type = 'select+connect' #'select+move'
+    args.task_type = 'connect' #'select+move'
     # args.task_type = 'select+move'
     # args.task_type = "reach+select+move"
     args.reward_type = 'object1_xyz_distance'
@@ -112,7 +112,7 @@ def main(args):
     args.reset_type = 'var_2dpos+no_rot'
     args.goal_type = 'reset'
 
-    args.pos_dist = 0.1,
+    args.pos_dist = 0.2,
     # args.rot_dist_up = -np.inf
     # args.rot_dist_forward = -np.inf
     # args.project_dist = -np.inf

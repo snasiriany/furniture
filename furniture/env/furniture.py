@@ -690,6 +690,43 @@ class FurnitureEnv(metaclass=EnvMeta):
         # set next subtask
         self._get_next_subtask()
 
+    def _can_connect(self, part1=None, part2=None):
+        """
+        Attempts to connect 2 parts. If they are correctly aligned,
+        then we interpolate the 2 parts towards the target position and orientation
+        for smoother visual connection.
+        """
+        if part1 is not None:
+            body1_ids = [self.sim.model.body_name2id(obj_name) for obj_name in self._object_names
+                         if self._find_group(obj_name) == self._find_group(part1)]
+        else:
+            body1_ids = [self.sim.model.body_name2id(obj_name) for obj_name in self._object_names]
+
+        if part2 is not None:
+            body2_ids = [self.sim.model.body_name2id(obj_name) for obj_name in self._object_names
+                         if self._find_group(obj_name) == self._find_group(part2)]
+        else:
+            body2_ids = [self.sim.model.body_name2id(obj_name) for obj_name in self._object_names]
+
+        sites1 = []
+        sites2 = []
+        for j, site in enumerate(self.sim.model.site_names):
+            if 'conn_site' in site:
+                if self.sim.model.site_bodyid[j] in body1_ids:
+                    sites1.append((j, site))
+                if self.sim.model.site_bodyid[j] in body2_ids:
+                    sites2.append((j, site))
+
+
+        if len(sites1) == 0 or len(sites2) == 0:
+            return False
+
+        for i, (id1, id2) in enumerate(zip(self.sim.model.eq_obj1id, self.sim.model.eq_obj2id)):
+            if id1 in (body1_ids + body2_ids) and id2 in (body1_ids + body2_ids):
+                return True
+        else:
+            return False
+
     def _try_connect(self, part1=None, part2=None):
         """
         Attempts to connect 2 parts. If they are correctly aligned,
