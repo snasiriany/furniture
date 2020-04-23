@@ -178,6 +178,7 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
 
     def _get_info(self, action=None):
         obs = self._get_obs()
+
         cursor1_ob = np.concatenate((obs["robot_ob"][0:3], obs["robot_ob"][6:7]))
         cursor2_ob = np.concatenate((obs["robot_ob"][3:6], obs["robot_ob"][7:8]))
         obj1_ob = obs["object_ob"][0:7]
@@ -252,7 +253,12 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
 
     def set_to_goal(self, goal):
         state_goal = goal['state_desired_goal']
-        qpos = state_goal[8:22].copy()
+        if self._obj_joint_type == 'free':
+            qpos = state_goal[8:22].copy()
+        elif self._obj_joint_type == 'slide':
+            qpos = np.concatenate((state_goal[8:11], state_goal[15:18]))
+        else:
+            raise NotImplementedError
         qvel = np.zeros(self.sim.model.nv)
         self.set_state(qpos, qvel)
 

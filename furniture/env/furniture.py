@@ -1769,7 +1769,7 @@ class FurnitureEnv(metaclass=EnvMeta):
                         action = np.hstack([action[:6], np.zeros(6), [flag[0], flag[1], action[7]]])
 
             ob, reward, done, info = self.step(action)
-            # print(ob["object_ob"].shape)
+            # print(ob["object_ob"])
             # print(ob["num_connected_ob"])
             if config.debug:
                 print('Action:', action)
