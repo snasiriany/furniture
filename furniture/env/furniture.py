@@ -121,6 +121,8 @@ class FurnitureEnv(metaclass=EnvMeta):
             # set to the best quality
             self._unity.set_quality(config.quality)
 
+        self.reset()
+
     @property
     def observation_space(self):
         """
@@ -133,7 +135,8 @@ class FurnitureEnv(metaclass=EnvMeta):
 
         if self._object_ob:
             # can be changed to the desired number depending on the task
-            ob_space['object_ob'] = [(3 + 4) * 2]
+            # ob_space['object_ob'] = [(3 + 4) * 2]
+            ob_space['object_ob'] = [(3 + 4) * self.n_objects]
 
         if self._subtask_ob:
             ob_space['subtask_ob'] = 2

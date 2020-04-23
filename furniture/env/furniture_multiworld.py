@@ -104,7 +104,6 @@ class FurnitureMultiworld(MultitaskEnv):
         )
 
     def compute_rewards(self, actions, obs, prev_obs=None, reward_type=None):
-        # return np.zeros(len(obs['state_observation']))
         return self._wrapped_env.compute_rewards(actions, obs, prev_obs, reward_type)
 
     def get_env_state(self):
