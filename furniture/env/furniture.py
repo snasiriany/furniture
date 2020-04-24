@@ -94,6 +94,12 @@ class FurnitureEnv(metaclass=EnvMeta):
         else:
             self._print_debug_info = False
 
+        if 'connector_ob_type' in self._config:
+            self._connector_ob_type = self._config.connector_ob_type
+            assert self._connector_ob_type in ['dist', None]
+        else:
+            self._connector_ob_type = None
+
         self._action_on = False
         self._load_demo = config.load_demo
         self._record_demo = config.record_demo
@@ -1113,6 +1119,34 @@ class FurnitureEnv(metaclass=EnvMeta):
             state['subtask_ob'] = np.array([self._subtask_part1 + 1,
                                             self._subtask_part2 + 1])
 
+        if self._connector_ob_type is not None:
+            connector_positions_dict = {}
+            for j, site in enumerate(self.sim.model.site_names):
+                if 'conn_site' in site:
+                    conn1, conn2 = site.split(',')[0].split('-')
+                    if conn1 > conn2:
+                        conn1, conn2 = conn2, conn1
+
+                    if conn1 not in connector_positions_dict:
+                        connector_positions_dict[conn1] = {}
+
+                    if conn2 not in connector_positions_dict[conn1]:
+                        connector_positions_dict[conn1][conn2] = []
+
+                    connector_positions_dict[conn1][conn2].append(self._site_xpos_xquat(site)[:3])
+
+            connector_pair_positions = []
+            for conn1 in sorted(connector_positions_dict.keys()):
+                for conn2 in sorted(connector_positions_dict[conn1].keys()):
+                    connector_pair_positions.append(connector_positions_dict[conn1][conn2])
+
+            if self._connector_ob_type == 'dist':
+                state['connector_ob'] = np.array(
+                    [np.linalg.norm(site1 - site2) for site1, site2 in connector_pair_positions]
+                )
+            else:
+                raise NotImplementedError
+
         return state
 
     def _place_objects(self):
@@ -1381,6 +1415,12 @@ class FurnitureEnv(metaclass=EnvMeta):
         self.mjpy_model = self.mujoco_model.get_model(mode="mujoco_py")
         self.sim = mujoco_py.MjSim(self.mjpy_model)
         self.initialize_time()
+
+        n_connectors = 0
+        for j, site in enumerate(self.sim.model.site_names):
+            if 'conn_site' in site:
+                n_connectors += 1
+        self.n_connectors = n_connectors
 
         self._is_render = self._visual_ob or self._render_mode != 'no'
         if self._is_render:

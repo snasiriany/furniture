@@ -43,6 +43,17 @@ class FurnitureMultiworld(MultitaskEnv):
         object_space = Box(object_low, object_high, dtype=np.float32)
         obs_space = concatenate_box_spaces(robot_space, object_space)
 
+        if self._connector_ob_type is not None:
+            if self._connector_ob_type == "dist":
+                dim = self._wrapped_env.n_connectors * 1 // 2
+            elif self._connector_ob_type == "diff":
+                dim = self._wrapped_env.n_connectors * 3 // 2
+            elif self._connector_ob_type == "pos":
+                dim = self._wrapped_env.n_connectors * 3
+            else:
+                raise NotImplementedError
+            connector_space = Box(-1 * np.ones(dim), 1 * np.ones(dim), dtype=np.float32)
+            obs_space = concatenate_box_spaces(obs_space, connector_space)
         if self._config.num_connected_ob:
             num_connected_space = Box(np.array([0]), np.array([100]), dtype=np.float32)
             obs_space = concatenate_box_spaces(obs_space, num_connected_space)
@@ -84,6 +95,8 @@ class FurnitureMultiworld(MultitaskEnv):
 
     def __covert_to_multiworld_obs(self, obs):
         flat_obs = np.concatenate((obs['robot_ob'], obs['object_ob']))
+        if self._connector_ob_type is not None:
+            flat_obs = np.concatenate((flat_obs, obs['connector_ob']))
         if self._config.num_connected_ob:
             flat_obs = np.concatenate((flat_obs, obs['num_connected_ob']))
 

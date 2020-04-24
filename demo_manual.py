@@ -99,12 +99,13 @@ def main(args):
     args.task_type = 'connect' #'select+move'
     # args.task_type = 'select+move'
     # args.task_type = "reach+select+move"
-    args.reward_type = 'object1_xyz_distance'
+    args.reward_type = 'object1_xyz_distance+num_connected'
     # args.fixed_goal = False
     args.preempt_collisions = True
     args.print_debug_info = True
 
     args.obj_joint_type = "slide"
+    args.connector_ob_type = "dist"
 
     # args.reset_type = 'var_2dpos'
     # args.reset_type = 'var_2dpos+objs_near'

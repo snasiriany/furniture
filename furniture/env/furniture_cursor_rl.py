@@ -35,8 +35,9 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             "select+connect+move",
             "connect+move",
         ]
-        
-        assert "connect" not in self._config.reward_type
+
+        if "connect" in self._config.task_type:
+            assert "num_connected" in self._config.reward_type
 
         if "light_logging" in self._config:
             self._light_logging = self._config.light_logging
@@ -111,6 +112,16 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         robot_goal[7] = 1
 
         self._state_goal = np.concatenate((robot_goal, object_goal))
+        if self._connector_ob_type is not None:
+            if self._connector_ob_type == "dist":
+                dim = self.n_connectors * 1 // 2
+            elif self._connector_ob_type == "diff":
+                dim = self.n_connectors * 3 // 2
+            elif self._connector_ob_type == "pos":
+                dim = self.n_connectors * 3
+            else:
+                raise NotImplementedError
+            self._state_goal = np.concatenate((self._state_goal, np.zeros(dim)))
         if self._config.num_connected_ob:
             self._state_goal = np.concatenate((self._state_goal, np.zeros(1)))
 
@@ -183,6 +194,8 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         obs = self._get_obs()
 
         state_ob = np.concatenate((obs["robot_ob"], obs["object_ob"]))
+        if self._connector_ob_type is not None:
+            state_ob = np.concatenate((state_ob, obs["connector_ob"]))
         if self._config.num_connected_ob:
             state_ob = np.concatenate((state_ob, obs["num_connected_ob"]))
         state_distance = np.linalg.norm(state_ob - self._state_goal)
@@ -244,6 +257,14 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         info['obj_xyz_dist'] = obj_xyz_dist
         info['obj_quat_dist'] = obj_quat_dist
         info['obj_in_bounds'] = obj_in_bounds
+
+        if self._connector_ob_type is not None:
+            conn_dist = 0
+            for i in range(self.n_connectors // 2):
+                assert self._connector_ob_type == 'dist'
+                info['conn{}_dist'.format(i + 1)] = obs['connector_ob'][i]
+                conn_dist += obs['connector_ob'][i]
+            info['conn_dist'] = conn_dist
 
         if self._config.num_connected_ob:
             info["num_connected"] = obs["num_connected_ob"]
@@ -356,44 +377,45 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         state = obs["state_observation"]
         goal = obs["state_desired_goal"]
 
-        if self._config.reward_type == 'state_distance':
-            dist = np.linalg.norm(state - goal, axis=1)
-        elif self._config.reward_type == 'cursor_distance':
-            dist = np.linalg.norm(state[:,:8] - goal[:,:8], axis=1)
-        elif self._config.reward_type == 'object_distance':
-            dist = np.zeros(len(state))
-            for i in range(self.n_objects):
-                dist += np.linalg.norm(state[:,8+7*i:8+7*i+7] - goal[:,8+7*i:8+7*i+7], axis=1)
-        elif self._config.reward_type == 'object1_distance':
-            dist = np.linalg.norm(state[:,8:15] - goal[:,8:15], axis=1)
-        elif self._config.reward_type == 'object_xyz_distance':
-            dist = np.zeros(len(state))
-            for i in range(self.n_objects):
-                dist += np.linalg.norm(state[:, 8 + 7 * i:8 + 7 * i + 3] - goal[:, 8 + 7 * i:8 + 7 * i + 3], axis=1)
-        elif self._config.reward_type == 'object1_xyz_distance':
-            dist = np.linalg.norm(state[:,8:11] - goal[:, 8:11], axis=1)
-        elif self._config.reward_type == 'object1_xyz_in_bounds':
-            bv = 0.40
-            inbounds = np.all((state[:,8:11] >= [-bv, -bv, -bv]) & (state[:,8:11] <= [bv, bv, bv]), axis=1)
-            dist = -inbounds.astype(float)
-        elif self._config.reward_type == 'object_in_bounds':
-            bv = 0.40
-            dist = np.zeros(len(state))
-            for i in range(self.n_objects):
-                inbounds = np.all(
-                    (state[:,8+7*i:8+7*i+3] >= [-bv, -bv, -bv]) & (state[:,8+7*i:8+7*i+3] <= [bv, bv, bv]), axis=1
-                )
-                dist -= inbounds.astype(float)
-        elif self._config.reward_type == 'object_distance+select_distance':
-            dist = np.zeros(len(state))
-            for i in range(self.n_objects):
-                dist += np.linalg.norm(state[:,8+7*i:8+7*i+7] - goal[:,8+7*i:8+7*i+7], axis=1)
-            dist += np.linalg.norm(state[:, 6:8] - goal[:, 6:8], axis=1)
-        else:
-            raise NotImplementedError
+        rewards = self._config.reward_type.split('+')
 
-        if "connect" in self._config.task_type:
-            num_connected_rew = state[:, -1] * self._config.num_connected_reward_scale
-            dist = dist - num_connected_rew
+        dist = np.zeros(len(state))
+        for reward in rewards:
+            if reward == 'state_distance':
+                dist += np.linalg.norm(state - goal, axis=1)
+            elif reward == 'cursor_distance':
+                dist += np.linalg.norm(state[:,:8] - goal[:,:8], axis=1)
+            elif reward == 'object_distance':
+                for i in range(self.n_objects):
+                    dist += np.linalg.norm(state[:,8+7*i:8+7*i+7] - goal[:,8+7*i:8+7*i+7], axis=1)
+            elif reward == 'object1_distance':
+                dist += np.linalg.norm(state[:,8:15] - goal[:,8:15], axis=1)
+            elif reward == 'object_xyz_distance':
+                for i in range(self.n_objects):
+                    dist += np.linalg.norm(state[:, 8 + 7 * i:8 + 7 * i + 3] - goal[:, 8 + 7 * i:8 + 7 * i + 3], axis=1)
+            elif reward == 'object1_xyz_distance':
+                dist += np.linalg.norm(state[:,8:11] - goal[:, 8:11], axis=1)
+            elif reward == 'object1_xyz_in_bounds':
+                bv = 0.40
+                inbounds = np.all((state[:,8:11] >= [-bv, -bv, -bv]) & (state[:,8:11] <= [bv, bv, bv]), axis=1)
+                dist += (1 - inbounds.astype(float))
+            elif reward == 'object_in_bounds':
+                bv = 0.40
+                for i in range(self.n_objects):
+                    inbounds = np.all(
+                        (state[:,8+7*i:8+7*i+3] >= [-bv, -bv, -bv]) & (state[:,8+7*i:8+7*i+3] <= [bv, bv, bv]), axis=1
+                    )
+                    dist += (1 - inbounds.astype(float))
+            elif reward == 'select_distance':
+                dist += np.linalg.norm(state[:, 6:8] - goal[:, 6:8], axis=1)
+            elif reward == 'num_connected':
+                dist -= state[:, -1] * self._config.num_connected_reward_scale
+            elif reward == 'connector_dist':
+                assert self._connector_ob_type == 'dist'
+                start_idx = 8 + self.n_objects * 7
+                end_idx = start_idx + (self.n_connectors // 2)
+                dist += np.sum(state[:, start_idx:end_idx], axis=1)
+            else:
+                raise NotImplementedError
 
         return -dist
