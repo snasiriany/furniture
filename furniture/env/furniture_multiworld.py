@@ -58,6 +58,9 @@ class FurnitureMultiworld(MultitaskEnv):
             num_connected_space = Box(np.array([0]), np.array([100]), dtype=np.float32)
             obs_space = concatenate_box_spaces(obs_space, num_connected_space)
 
+        oracle_info_dim = 2 + (self._wrapped_env.n_connectors // 2)
+        oracle_info_space = Box(-1 * np.ones(oracle_info_dim), 1 * np.ones(oracle_info_dim), dtype=np.float32)
+
         self.observation_space = Dict([
             ('observation', obs_space),
             ('desired_goal',obs_space),
@@ -68,6 +71,8 @@ class FurnitureMultiworld(MultitaskEnv):
             ('proprio_observation', robot_space),
             ('proprio_desired_goal', robot_space),
             ('proprio_achieved_goal', robot_space),
+
+            ('oracle_info', oracle_info_space),
         ])
 
         # covert action space
@@ -114,6 +119,8 @@ class FurnitureMultiworld(MultitaskEnv):
             proprio_observation=flat_obs[:robot_dim],
             proprio_desired_goal=state_goal[:robot_dim],
             proprio_achieved_goal=flat_obs[:robot_dim],
+
+            oracle_info=self._get_oracle_info(),
         )
 
     def compute_rewards(self, actions, obs, prev_obs=None, reward_type=None):

@@ -275,6 +275,22 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
 
         return info
 
+    def _get_oracle_info(self):
+        oracle_info_dim = 2 + (self.n_connectors // 2)
+        oracle_info = np.zeros(oracle_info_dim)
+
+        for cursor_idx in [0, 1]:
+            obj_name = self._cursor_selected[cursor_idx]
+            if obj_name is None:
+                object_idx = -1
+            else:
+                object_idx = self._object_names.index(obj_name)
+            oracle_info[cursor_idx] = object_idx
+
+
+
+        return oracle_info
+
     def set_to_goal(self, goal):
         state_goal = goal['state_desired_goal']
         if self._obj_joint_type == 'free':
@@ -414,6 +430,13 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                 assert self._connector_ob_type == 'dist'
                 start_idx = 8 + self.n_objects * 7
                 end_idx = start_idx + (self.n_connectors // 2)
+                dist += np.sum(state[:, start_idx:end_idx], axis=1)
+            elif reward == 'current_connector_dist':
+                assert self._connector_ob_type == 'dist'
+                start_idx = 8 + self.n_objects * 7
+                end_idx = start_idx + (self.n_connectors // 2)
+                ### find connectors that need to be currently connected ###
+
                 dist += np.sum(state[:, start_idx:end_idx], axis=1)
             else:
                 raise NotImplementedError
