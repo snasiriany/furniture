@@ -1149,6 +1149,23 @@ class FurnitureEnv(metaclass=EnvMeta):
 
         return state
 
+    def _get_oracle_object_info(self):
+        dim = self.n_connectors * (1 + 2 + 1 + 3) # siteid(1), obj ids (2), welded (1), position (3)
+        info = np.zeros(dim)
+
+        for (i, connector_name) in enumerate(sorted(self._connector_dict.keys())):
+            connector = self._connector_dict[connector_name]
+            connector['pos'] = self._site_xpos_xquat(connector_name)[:3]
+            start_idx = i * (dim // self.n_connectors)
+            info[start_idx] = connector['site_id']
+            info[start_idx + 1] = connector['from_obj_id']
+            info[start_idx + 2] = connector['to_obj_id']
+            info[start_idx + 3] = connector['welded']
+            info[start_idx + 4:start_idx + 7] = connector['pos']
+
+        return info
+
+
     def _place_objects(self):
         """
         Returns the fixed initial positions and rotations of furniture parts.
@@ -1180,6 +1197,9 @@ class FurnitureEnv(metaclass=EnvMeta):
             else:
                 self._furniture_id = furniture_id
             self._reset_internal()
+
+        for connector_name in self._connector_dict:
+            self._connector_dict[connector_name]['welded'] = False
 
         # store robot's condim and contype
         robot_col = {}
@@ -1459,6 +1479,57 @@ class FurnitureEnv(metaclass=EnvMeta):
                     bullet_data_path=os.path.join(furniture.env.models.assets_root, "bullet_data"),
                     robot_jpos_getter=self._robot_jpos_getter,
                 )
+
+        connector_dict = {}
+        body_ids = {obj_name: self.sim.model.body_name2id(obj_name) for obj_name in self._object_names}
+        for j, site in enumerate(self.sim.model.site_names):
+            if 'conn_site' in site:
+                from_obj_name, to_obj_name = site.split(',')[0].split('-')
+                from_obj_id = None
+                for obj_name in body_ids.keys():
+                    if body_ids[obj_name] == self.sim.model.site_bodyid[j]:
+                        from_obj_id = self._object_name2id[obj_name]
+                        break
+                assert from_obj_id is not None
+                pos = self._site_xpos_xquat(site)[:3]
+                welded = False
+                connector_dict[site] = {
+                    'from_obj_name': from_obj_name,
+                    'to_obj_name': to_obj_name,
+                    'site_id': j,
+                    'from_obj_id': from_obj_id,
+                    'pos': pos,
+                    'welded': welded,
+                }
+        for site1 in connector_dict:
+            from_obj_name = connector_dict[site1]['from_obj_name']
+            to_obj_name = connector_dict[site1]['to_obj_name']
+            to_obj_id = None
+
+            ### find matching site
+            for site2 in connector_dict:
+                if connector_dict[site2]['to_obj_name'] == from_obj_name and \
+                        connector_dict[site2]['from_obj_name'] == to_obj_name:
+                    to_obj_id = connector_dict[site2]['from_obj_id']
+                    break
+
+            assert to_obj_id is not None
+            connector_dict[site1]['to_obj_id'] = to_obj_id
+
+        self._connector_dict = connector_dict
+
+        obj_ids_to_connector_idx = {}
+        for (idx, connector_name) in enumerate(sorted(self._connector_dict.keys())):
+            connector = self._connector_dict[connector_name]
+            from_obj_id = connector['from_obj_id']
+            to_obj_id = connector['to_obj_id']
+
+            if from_obj_id not in obj_ids_to_connector_idx:
+                obj_ids_to_connector_idx[from_obj_id] = {}
+
+            obj_ids_to_connector_idx[from_obj_id][to_obj_id] = idx
+        self._obj_ids_to_connector_idx = obj_ids_to_connector_idx
+
 
     def _load_model_robot(self):
         """
@@ -1849,8 +1920,13 @@ class FurnitureEnv(metaclass=EnvMeta):
                         action = np.hstack([action[:6], np.zeros(6), [flag[0], flag[1], action[7]]])
 
             ob, reward, done, info = self.step(action)
-            # print(ob["object_ob"])
-            # print(ob["num_connected_ob"])
+
+            # oracle_info = self._get_oracle_object_info()
+            # for i in range(self.n_connectors):
+            #     start_idx = i * (len(oracle_info) // self.n_connectors)
+            #     print(oracle_info[start_idx:start_idx+ len(oracle_info) // self.n_connectors])
+            # print()
+
             if config.debug:
                 print('Action:', action)
 
@@ -1950,6 +2026,13 @@ class FurnitureEnv(metaclass=EnvMeta):
             if p1 in [part1, part2] and p2 in [part1, part2]:
                 self.sim.model.eq_active[i] = 1
                 self._merge_groups(part1, part2)
+                part1_id = self._object_name2id[part1]
+                part2_id = self._object_name2id[part2]
+                for connector_name in self._connector_dict:
+                    connector = self._connector_dict[connector_name]
+                    if part1_id in [connector['from_obj_id'], connector['to_obj_id']] and \
+                            part2_id in [connector['from_obj_id'], connector['to_obj_id']]:
+                        connector['welded'] = True
 
     def _stop_object(self, obj_name, gravity=1):
         """

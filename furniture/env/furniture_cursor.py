@@ -118,6 +118,20 @@ class FurnitureCursorEnv(FurnitureEnv):
 
         return state
 
+    def _get_oracle_robot_info(self):
+        dim = 2
+        info = np.zeros(dim)
+
+        for cursor_idx in [0, 1]:
+            obj_name = self._cursor_selected[cursor_idx]
+            if obj_name is None:
+                object_idx = -1
+            else:
+                object_idx = self._object_name2id[obj_name]
+            info[cursor_idx] = object_idx
+
+        return info
+
     def _compute_reward(self):
         """
         Computes reward of the current state.

@@ -58,8 +58,19 @@ class FurnitureMultiworld(MultitaskEnv):
             num_connected_space = Box(np.array([0]), np.array([100]), dtype=np.float32)
             obs_space = concatenate_box_spaces(obs_space, num_connected_space)
 
-        oracle_info_dim = 2 + (self._wrapped_env.n_connectors // 2)
-        oracle_info_space = Box(-1 * np.ones(oracle_info_dim), 1 * np.ones(oracle_info_dim), dtype=np.float32)
+        oracle_object_info_dim = len(self._get_oracle_object_info())
+        oracle_object_info_space = Box(
+            -1 * np.ones(oracle_object_info_dim),
+            1 * np.ones(oracle_object_info_dim),
+            dtype=np.float32
+        )
+
+        oracle_robot_info_dim = len(self._get_oracle_robot_info())
+        oracle_robot_info_space = Box(
+            -1 * np.ones(oracle_robot_info_dim),
+            1 * np.ones(oracle_robot_info_dim),
+            dtype=np.float32
+        )
 
         self.observation_space = Dict([
             ('observation', obs_space),
@@ -72,7 +83,8 @@ class FurnitureMultiworld(MultitaskEnv):
             ('proprio_desired_goal', robot_space),
             ('proprio_achieved_goal', robot_space),
 
-            ('oracle_info', oracle_info_space),
+            ('oracle_object_info', oracle_object_info_space),
+            ('oracle_robot_info', oracle_robot_info_space),
         ])
 
         # covert action space
@@ -91,8 +103,10 @@ class FurnitureMultiworld(MultitaskEnv):
         return self.__covert_to_multiworld_obs(obs)
 
     def step(self, action):
-        obs, reward, done, info = self._wrapped_env.step(action)
-        return self.__covert_to_multiworld_obs(obs), reward, done, info
+        obs, _, done, info = self._wrapped_env.step(action)
+        obs = self.__covert_to_multiworld_obs(obs)
+        reward = self.compute_reward(action, obs)
+        return obs, reward, done, info
 
     def __get_obs(self):
         obs = self._wrapped_env._get_obs()
@@ -120,7 +134,8 @@ class FurnitureMultiworld(MultitaskEnv):
             proprio_desired_goal=state_goal[:robot_dim],
             proprio_achieved_goal=flat_obs[:robot_dim],
 
-            oracle_info=self._get_oracle_info(),
+            oracle_object_info=self._get_oracle_object_info(),
+            oracle_robot_info=self._get_oracle_robot_info(),
         )
 
     def compute_rewards(self, actions, obs, prev_obs=None, reward_type=None):

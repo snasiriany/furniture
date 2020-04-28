@@ -275,22 +275,6 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
 
         return info
 
-    def _get_oracle_info(self):
-        oracle_info_dim = 2 + (self.n_connectors // 2)
-        oracle_info = np.zeros(oracle_info_dim)
-
-        for cursor_idx in [0, 1]:
-            obj_name = self._cursor_selected[cursor_idx]
-            if obj_name is None:
-                object_idx = -1
-            else:
-                object_idx = self._object_names.index(obj_name)
-            oracle_info[cursor_idx] = object_idx
-
-
-
-        return oracle_info
-
     def set_to_goal(self, goal):
         state_goal = goal['state_desired_goal']
         if self._obj_joint_type == 'free':
@@ -427,17 +411,42 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             elif reward == 'num_connected':
                 dist -= state[:, -1] * self._config.num_connected_reward_scale
             elif reward == 'connector_dist':
-                assert self._connector_ob_type == 'dist'
-                start_idx = 8 + self.n_objects * 7
-                end_idx = start_idx + (self.n_connectors // 2)
-                dist += np.sum(state[:, start_idx:end_idx], axis=1)
-            elif reward == 'current_connector_dist':
-                assert self._connector_ob_type == 'dist'
-                start_idx = 8 + self.n_objects * 7
-                end_idx = start_idx + (self.n_connectors // 2)
-                ### find connectors that need to be currently connected ###
+                # assert self._connector_ob_type == 'dist'
+                # start_idx = 8 + self.n_objects * 7
+                # end_idx = start_idx + (self.n_connectors // 2)
+                # dist += np.sum(state[:, start_idx:end_idx], axis=1)
 
-                dist += np.sum(state[:, start_idx:end_idx], axis=1)
+                connector_info_dim = len(obs['oracle_object_info'][0]) // self.n_connectors
+
+                for obj1_id in self._obj_ids_to_connector_idx.keys():
+                    for obj2_id in self._obj_ids_to_connector_idx[obj1_id].keys():
+                        if obj1_id < obj2_id:
+                            conn1_idx = self._obj_ids_to_connector_idx[obj1_id][obj2_id]
+                            conn2_idx = self._obj_ids_to_connector_idx[obj2_id][obj1_id]
+
+                            conn1_pos = obs['oracle_object_info'][:,
+                                        (conn1_idx + 1) * connector_info_dim - 3: (conn1_idx + 1) * connector_info_dim]
+                            conn2_pos = obs['oracle_object_info'][:,
+                                        (conn2_idx + 1) * connector_info_dim - 3: (conn2_idx + 1) * connector_info_dim]
+
+                            dist += np.linalg.norm(conn1_pos - conn2_pos, axis=1)
+            elif reward == 'current_connector_dist':
+                connector_info_dim = len(obs['oracle_object_info'][0]) // self.n_connectors
+
+                batch_size = len(obs['state_observation'])
+
+                for i in range(batch_size):
+                    obj1_id, obj2_id = obs['oracle_robot_info'][i]
+                    if obj1_id != -1 and obj2_id != -1:
+                        conn1_idx = self._obj_ids_to_connector_idx[obj1_id][obj2_id]
+                        conn2_idx = self._obj_ids_to_connector_idx[obj2_id][obj1_id]
+
+                        conn1_pos = obs['oracle_object_info'][:,
+                                    (conn1_idx + 1) * connector_info_dim - 3: (conn1_idx + 1) * connector_info_dim]
+                        conn2_pos = obs['oracle_object_info'][:,
+                                    (conn2_idx + 1) * connector_info_dim - 3: (conn2_idx + 1) * connector_info_dim]
+
+                        dist[i] += np.linalg.norm(conn1_pos - conn2_pos)
             else:
                 raise NotImplementedError
 
