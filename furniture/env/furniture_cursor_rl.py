@@ -90,6 +90,10 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             object_goal[10:14] = [1, 0, 0, 0]
         elif self._config.goal_type == 'reset':
             object_goal = super().reset(furniture_id=furniture_id, background=background)["object_ob"].copy()
+        elif self._config.goal_type == 'zeros':
+            if not hasattr(self, 'n_objects'):
+                super().reset(furniture_id=furniture_id, background=background)
+            object_goal = np.zeros(self.n_objects*7)
         else:
             raise NotImplementedError
 
@@ -106,10 +110,11 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         object_ob = obs['object_ob'].copy()
 
         robot_goal = np.zeros(robot_ob.size)
-        robot_goal[0:3] = object_goal[0:3]
-        robot_goal[3:6] = object_goal[7:10]
-        robot_goal[6] = 1
-        robot_goal[7] = 1
+        if self._config.goal_type is not 'zeros':
+            robot_goal[0:3] = object_goal[0:3]
+            robot_goal[3:6] = object_goal[7:10]
+            robot_goal[6] = 1
+            robot_goal[7] = 1
 
         self._state_goal = np.concatenate((robot_goal, object_goal))
         if self._connector_ob_type is not None:
@@ -202,40 +207,23 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
 
         cursor1_ob = np.concatenate((obs["robot_ob"][0:3], obs["robot_ob"][6:7]))
         cursor2_ob = np.concatenate((obs["robot_ob"][3:6], obs["robot_ob"][7:8]))
-        cursor1_goal = np.concatenate((self._state_goal[0:3], self._state_goal[6:7]))
-        cursor2_goal = np.concatenate((self._state_goal[3:6], self._state_goal[7:8]))
 
         cursor1_selected = cursor1_ob[3]
         cursor2_selected = cursor2_ob[3]
-        cursor1_xyz_dist = np.linalg.norm(cursor1_ob[:3] - cursor1_goal[:3])
-        cursor2_xyz_dist = np.linalg.norm(cursor2_ob[:3] - cursor2_goal[:3])
-        cursor1_select_dist = np.linalg.norm(cursor1_ob[3] - cursor1_goal[3])
-        cursor2_select_dist = np.linalg.norm(cursor2_ob[3] - cursor2_goal[3])
 
         info = dict(
+            cursor1_selected=cursor1_selected,
+            cursor2_selected=cursor2_selected,
             cursor_selected=cursor1_selected + cursor2_selected,
-            cursor_xyz_dist=cursor1_xyz_dist + cursor2_xyz_dist,
-            cursor_select_dist=cursor1_select_dist + cursor2_select_dist,
 
             state_distance=state_distance,
         )
-        if not self._light_logging:
-            info.update(dict(
-                cursor1_selected=cursor1_selected,
-                cursor2_selected=cursor2_selected,
-
-                cursor1_xyz_dist=cursor1_xyz_dist,
-                cursor2_xyz_dist=cursor2_xyz_dist,
-
-                cursor1_select_dist=cursor1_select_dist,
-                cursor2_select_dist=cursor2_select_dist,
-            ))
 
         obj_ob = obs["object_ob"]
         obj_goal = self._state_goal[8:8 + self.n_objects * 7]
 
         obj_xyz_dist, obj_quat_dist, obj_in_bounds = 0, 0, 0
-        bv = 0.40
+        bv = 0.50
         for i in range(self.n_objects):
             start_idx = i*7
             xyz_dist = np.linalg.norm(obj_ob[start_idx:start_idx + 3] - obj_goal[start_idx:start_idx + 3])
@@ -258,13 +246,72 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         info['obj_quat_dist'] = obj_quat_dist
         info['obj_in_bounds'] = obj_in_bounds
 
-        if self._connector_ob_type is not None:
-            conn_dist = 0
-            for i in range(self.n_connectors // 2):
-                assert self._connector_ob_type == 'dist'
-                info['conn{}_dist'.format(i + 1)] = obs['connector_ob'][i]
-                conn_dist += obs['connector_ob'][i]
-            info['conn_dist'] = conn_dist
+        oracle_connector_info = self._get_oracle_connector_info()
+        oracle_robot_info = self._get_oracle_robot_info()
+
+        connector_info_dim = len(oracle_connector_info) // self.n_connectors
+        info_idx = 0
+        conn_dist = 0
+        for obj1_id in self._obj_ids_to_connector_idx.keys():
+            for obj2_id in self._obj_ids_to_connector_idx[obj1_id].keys():
+                if obj1_id < obj2_id:
+                    conn1_idx = self._obj_ids_to_connector_idx[obj1_id][obj2_id]
+                    conn2_idx = self._obj_ids_to_connector_idx[obj2_id][obj1_id]
+
+                    conn1_pos = oracle_connector_info[
+                                (conn1_idx + 1) * connector_info_dim - 3: (conn1_idx + 1) * connector_info_dim]
+                    conn2_pos = oracle_connector_info[
+                                (conn2_idx + 1) * connector_info_dim - 3: (conn2_idx + 1) * connector_info_dim]
+
+                    info['conn{}_dist'.format(info_idx + 1)] = np.linalg.norm(conn1_pos - conn2_pos)
+                    conn_dist += info['conn{}_dist'.format(info_idx + 1)]
+
+                    info_idx += 1
+        info['conn_dist'] = conn_dist
+
+        obj1_id, obj2_id = oracle_robot_info
+        if obj2_id != -1:
+            conn1_idx = self._obj_ids_to_connector_idx[obj1_id][obj2_id]
+            conn2_idx = self._obj_ids_to_connector_idx[obj2_id][obj1_id]
+
+            conn1_pos = oracle_connector_info[
+                        (conn1_idx + 1) * connector_info_dim - 3: (conn1_idx + 1) * connector_info_dim]
+            conn2_pos = oracle_connector_info[
+                        (conn2_idx + 1) * connector_info_dim - 3: (conn2_idx + 1) * connector_info_dim]
+
+            info['sel_conn_dist'] = np.linalg.norm(conn1_pos - conn2_pos)
+        else:
+            info['sel_conn_dist'] = 0
+
+        obj1_id, obj2_id = oracle_robot_info
+        if obj2_id == -1 and obs["num_connected_ob"] < ((self.n_connectors // 2) - 1):
+            obj2_id = self._task_connect_sequence[-1]
+        if obj2_id != -1:
+            conn1_idx = self._obj_ids_to_connector_idx[obj1_id][obj2_id]
+            conn2_idx = self._obj_ids_to_connector_idx[obj2_id][obj1_id]
+
+            conn1_pos = oracle_connector_info[
+                        (conn1_idx + 1) * connector_info_dim - 3: (conn1_idx + 1) * connector_info_dim]
+            conn2_pos = oracle_connector_info[
+                        (conn2_idx + 1) * connector_info_dim - 3: (conn2_idx + 1) * connector_info_dim]
+            info['next_conn_dist'] = np.linalg.norm(conn1_pos - conn2_pos)
+        else:
+            info['next_conn_dist'] = 0
+
+        if self.n_objects == 3:  ### This is a hack for 3 objs for now ###
+            obj1_id, obj2_id = oracle_robot_info
+            if obj2_id == -1 and obs["num_connected_ob"] < ((self.n_connectors // 2) - 1):
+                next_obj_id = self._task_connect_sequence[-1]
+                next_conn_idx = list(self._obj_ids_to_connector_idx[next_obj_id].values())[0]
+                conn_pos = oracle_connector_info[
+                           (next_conn_idx + 1) * connector_info_dim - 3: (next_conn_idx + 1) * connector_info_dim]
+                cursor_pos = cursor2_ob[0:3]
+
+                info['cursor_dist'] = np.linalg.norm(cursor_pos - conn_pos)
+                info['cursor_sparse_dist'] = 1
+            else:
+                info['cursor_dist'] = 0
+                info['cursor_sparse_dist'] = 0
 
         if self._config.num_connected_ob:
             info["num_connected"] = obs["num_connected_ob"]
@@ -342,11 +389,13 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         Initializes robot posision with random noise perturbation
         """
         if "reach" not in self._config.task_type:
-            while True:
-                cursor0_idx, cursor1_idx = np.random.choice(self.n_objects, 2, replace=False)
-                if self._can_connect(self._object_names[cursor0_idx], self._object_names[cursor1_idx]):
-                    break
-
+            if self._task_connect_sequence is not None:
+                cursor0_idx, cursor1_idx = self._task_connect_sequence[0:2]
+            else:
+                while True:
+                    cursor0_idx, cursor1_idx = np.random.choice(self.n_objects, 2, replace=False)
+                    if self._can_connect(self._object_names[cursor0_idx], self._object_names[cursor1_idx]):
+                        break
 
             for i, obj_name in enumerate(self._object_names):
                 body_ids = [self.sim.model.body_name2id(obj_name)]
@@ -383,8 +432,6 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         for reward in rewards:
             if reward == 'state_distance':
                 dist += np.linalg.norm(state - goal, axis=1)
-            elif reward == 'cursor_distance':
-                dist += np.linalg.norm(state[:,:8] - goal[:,:8], axis=1)
             elif reward == 'object_distance':
                 for i in range(self.n_objects):
                     dist += np.linalg.norm(state[:,8+7*i:8+7*i+7] - goal[:,8+7*i:8+7*i+7], axis=1)
@@ -396,11 +443,11 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             elif reward == 'object1_xyz_distance':
                 dist += np.linalg.norm(state[:,8:11] - goal[:, 8:11], axis=1)
             elif reward == 'object1_xyz_in_bounds':
-                bv = 0.40
+                bv = 0.50
                 inbounds = np.all((state[:,8:11] >= [-bv, -bv, -bv]) & (state[:,8:11] <= [bv, bv, bv]), axis=1)
                 dist += (1 - inbounds.astype(float))
             elif reward == 'object_in_bounds':
-                bv = 0.40
+                bv = 0.50
                 for i in range(self.n_objects):
                     inbounds = np.all(
                         (state[:,8+7*i:8+7*i+3] >= [-bv, -bv, -bv]) & (state[:,8+7*i:8+7*i+3] <= [bv, bv, bv]), axis=1
@@ -409,14 +456,10 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             elif reward == 'select_distance':
                 dist += np.linalg.norm(state[:, 6:8] - goal[:, 6:8], axis=1)
             elif reward == 'num_connected':
-                dist -= state[:, -1] * self._config.num_connected_reward_scale
-            elif reward == 'connector_dist':
-                # assert self._connector_ob_type == 'dist'
-                # start_idx = 8 + self.n_objects * 7
-                # end_idx = start_idx + (self.n_connectors // 2)
-                # dist += np.sum(state[:, start_idx:end_idx], axis=1)
-
-                connector_info_dim = len(obs['oracle_object_info'][0]) // self.n_connectors
+                # dist -= state[:, -1] * self._config.num_connected_reward_scale
+                dist += ((self.n_connectors // 2) - state[:, -1]) * self._config.num_connected_reward_scale
+            elif reward == 'conn_dist':
+                connector_info_dim = len(obs['oracle_connector_info'][0]) // self.n_connectors
 
                 for obj1_id in self._obj_ids_to_connector_idx.keys():
                     for obj2_id in self._obj_ids_to_connector_idx[obj1_id].keys():
@@ -424,29 +467,88 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                             conn1_idx = self._obj_ids_to_connector_idx[obj1_id][obj2_id]
                             conn2_idx = self._obj_ids_to_connector_idx[obj2_id][obj1_id]
 
-                            conn1_pos = obs['oracle_object_info'][:,
+                            conn1_pos = obs['oracle_connector_info'][:,
                                         (conn1_idx + 1) * connector_info_dim - 3: (conn1_idx + 1) * connector_info_dim]
-                            conn2_pos = obs['oracle_object_info'][:,
+                            conn2_pos = obs['oracle_connector_info'][:,
                                         (conn2_idx + 1) * connector_info_dim - 3: (conn2_idx + 1) * connector_info_dim]
 
                             dist += np.linalg.norm(conn1_pos - conn2_pos, axis=1)
-            elif reward == 'current_connector_dist':
-                connector_info_dim = len(obs['oracle_object_info'][0]) // self.n_connectors
-
+            elif reward == 'sel_conn_dist':
+                connector_info_dim = len(obs['oracle_connector_info'][0]) // self.n_connectors
                 batch_size = len(obs['state_observation'])
 
                 for i in range(batch_size):
                     obj1_id, obj2_id = obs['oracle_robot_info'][i]
-                    if obj1_id != -1 and obj2_id != -1:
+                    if obj2_id != -1:
                         conn1_idx = self._obj_ids_to_connector_idx[obj1_id][obj2_id]
                         conn2_idx = self._obj_ids_to_connector_idx[obj2_id][obj1_id]
 
-                        conn1_pos = obs['oracle_object_info'][:,
+                        conn1_pos = obs['oracle_connector_info'][i,
                                     (conn1_idx + 1) * connector_info_dim - 3: (conn1_idx + 1) * connector_info_dim]
-                        conn2_pos = obs['oracle_object_info'][:,
+                        conn2_pos = obs['oracle_connector_info'][i,
                                     (conn2_idx + 1) * connector_info_dim - 3: (conn2_idx + 1) * connector_info_dim]
 
                         dist[i] += np.linalg.norm(conn1_pos - conn2_pos)
+            elif reward == 'next_conn_dist':
+                assert self.n_objects == 3  ### This is a hack for 3 objs for now ###
+                connector_info_dim = len(obs['oracle_connector_info'][0]) // self.n_connectors
+                batch_size = len(obs['state_observation'])
+
+                for i in range(batch_size):
+                    obj1_id, obj2_id = obs['oracle_robot_info'][i]
+                    num_connected = state[i, -1]
+                    if obj2_id == -1 and num_connected < ((self.n_connectors // 2) - 1):
+                        obj2_id = self._task_connect_sequence[-1]
+
+                    if obj2_id != -1:
+                        conn1_idx = self._obj_ids_to_connector_idx[obj1_id][obj2_id]
+                        conn2_idx = self._obj_ids_to_connector_idx[obj2_id][obj1_id]
+
+                        conn1_pos = obs['oracle_connector_info'][i,
+                                    (conn1_idx + 1) * connector_info_dim - 3: (conn1_idx + 1) * connector_info_dim]
+                        conn2_pos = obs['oracle_connector_info'][i,
+                                    (conn2_idx + 1) * connector_info_dim - 3: (conn2_idx + 1) * connector_info_dim]
+
+                        dist[i] += np.linalg.norm(conn1_pos - conn2_pos)
+            elif reward == 'first_conn_dist':
+                connector_info_dim = len(obs['oracle_connector_info'][0]) // self.n_connectors
+                batch_size = len(obs['state_observation'])
+
+                for i in range(batch_size):
+                    obj1_id, obj2_id = obs['oracle_robot_info'][i]
+                    if obj1_id == self._task_connect_sequence[0] and obj2_id == self._task_connect_sequence[1]:
+                        conn1_idx = self._obj_ids_to_connector_idx[obj1_id][obj2_id]
+                        conn2_idx = self._obj_ids_to_connector_idx[obj2_id][obj1_id]
+
+                        conn1_pos = obs['oracle_connector_info'][i,
+                                    (conn1_idx + 1) * connector_info_dim - 3: (conn1_idx + 1) * connector_info_dim]
+                        conn2_pos = obs['oracle_connector_info'][i,
+                                    (conn2_idx + 1) * connector_info_dim - 3: (conn2_idx + 1) * connector_info_dim]
+
+                        dist[i] += np.linalg.norm(conn1_pos - conn2_pos)
+            elif reward == 'cursor_dist':
+                assert self.n_objects == 3 ### This is a hack for 3 objs for now ###
+                connector_info_dim = len(obs['oracle_connector_info'][0]) // self.n_connectors
+                batch_size = len(obs['state_observation'])
+                for i in range(batch_size):
+                    obj1_id, obj2_id = obs['oracle_robot_info'][i]
+                    num_connected = state[i, -1]
+                    if obj2_id == -1 and num_connected < ((self.n_connectors // 2) - 1):
+                        next_obj_id = self._task_connect_sequence[-1]
+                        next_conn_idx = list(self._obj_ids_to_connector_idx[next_obj_id].values())[0]
+                        conn_pos = obs['oracle_connector_info'][i,
+                                    (next_conn_idx + 1) * connector_info_dim - 3: (next_conn_idx + 1) * connector_info_dim]
+                        cursor_pos = state[i,3:6]
+
+                        dist[i] += np.linalg.norm(cursor_pos - conn_pos)
+            elif reward == 'cursor_sparse_dist':
+                assert self.n_objects == 3 ### This is a hack for 3 objs for now ###
+                batch_size = len(obs['state_observation'])
+                for i in range(batch_size):
+                    obj1_id, obj2_id = obs['oracle_robot_info'][i]
+                    num_connected = state[i, -1]
+                    if obj2_id == -1 and num_connected < ((self.n_connectors // 2) - 1):
+                        dist[i] += 1.0
             else:
                 raise NotImplementedError
 

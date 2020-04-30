@@ -58,10 +58,10 @@ class FurnitureMultiworld(MultitaskEnv):
             num_connected_space = Box(np.array([0]), np.array([100]), dtype=np.float32)
             obs_space = concatenate_box_spaces(obs_space, num_connected_space)
 
-        oracle_object_info_dim = len(self._get_oracle_object_info())
-        oracle_object_info_space = Box(
-            -1 * np.ones(oracle_object_info_dim),
-            1 * np.ones(oracle_object_info_dim),
+        oracle_connector_info_dim = len(self._get_oracle_connector_info())
+        oracle_connector_info_space = Box(
+            -1 * np.ones(oracle_connector_info_dim),
+            1 * np.ones(oracle_connector_info_dim),
             dtype=np.float32
         )
 
@@ -83,7 +83,7 @@ class FurnitureMultiworld(MultitaskEnv):
             ('proprio_desired_goal', robot_space),
             ('proprio_achieved_goal', robot_space),
 
-            ('oracle_object_info', oracle_object_info_space),
+            ('oracle_connector_info', oracle_connector_info_space),
             ('oracle_robot_info', oracle_robot_info_space),
         ])
 
@@ -134,7 +134,7 @@ class FurnitureMultiworld(MultitaskEnv):
             proprio_desired_goal=state_goal[:robot_dim],
             proprio_achieved_goal=flat_obs[:robot_dim],
 
-            oracle_object_info=self._get_oracle_object_info(),
+            oracle_connector_info=self._get_oracle_connector_info(),
             oracle_robot_info=self._get_oracle_robot_info(),
         )
 

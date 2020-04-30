@@ -122,6 +122,8 @@ def main(args):
     args.num_connected_ob = True
     args.num_connected_reward_scale = 5.0
 
+    # args.task_connect_sequence = [0, 1, 2]
+
     print()
     print("Creating environment (robot: {}, furniture: {}, background: {})".format(
         env_name, furniture_name, background_name))

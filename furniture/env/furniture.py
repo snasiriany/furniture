@@ -99,6 +99,11 @@ class FurnitureEnv(metaclass=EnvMeta):
             assert self._connector_ob_type in ['dist', None]
         else:
             self._connector_ob_type = None
+            
+        if 'task_connect_sequence' in self._config:
+            self._task_connect_sequence = self._config.task_connect_sequence
+        else:
+            self._task_connect_sequence = None
 
         self._action_on = False
         self._load_demo = config.load_demo
@@ -1120,36 +1125,29 @@ class FurnitureEnv(metaclass=EnvMeta):
                                             self._subtask_part2 + 1])
 
         if self._connector_ob_type is not None:
-            connector_positions_dict = {}
-            for j, site in enumerate(self.sim.model.site_names):
-                if 'conn_site' in site:
-                    conn1, conn2 = site.split(',')[0].split('-')
-                    if conn1 > conn2:
-                        conn1, conn2 = conn2, conn1
+            assert self._connector_ob_type == 'dist'
 
-                    if conn1 not in connector_positions_dict:
-                        connector_positions_dict[conn1] = {}
+            oracle_connector_info = self._get_oracle_connector_info()
+            connector_info_dim = len(oracle_connector_info) // self.n_connectors
+            conn_dists = []
+            for obj1_id in self._obj_ids_to_connector_idx.keys():
+                for obj2_id in self._obj_ids_to_connector_idx[obj1_id].keys():
+                    if obj1_id < obj2_id:
+                        conn1_idx = self._obj_ids_to_connector_idx[obj1_id][obj2_id]
+                        conn2_idx = self._obj_ids_to_connector_idx[obj2_id][obj1_id]
 
-                    if conn2 not in connector_positions_dict[conn1]:
-                        connector_positions_dict[conn1][conn2] = []
+                        conn1_pos = oracle_connector_info[
+                                    (conn1_idx + 1) * connector_info_dim - 3: (conn1_idx + 1) * connector_info_dim]
+                        conn2_pos = oracle_connector_info[
+                                    (conn2_idx + 1) * connector_info_dim - 3: (conn2_idx + 1) * connector_info_dim]
 
-                    connector_positions_dict[conn1][conn2].append(self._site_xpos_xquat(site)[:3])
+                        conn_dists.append(np.linalg.norm(conn1_pos - conn2_pos))
 
-            connector_pair_positions = []
-            for conn1 in sorted(connector_positions_dict.keys()):
-                for conn2 in sorted(connector_positions_dict[conn1].keys()):
-                    connector_pair_positions.append(connector_positions_dict[conn1][conn2])
-
-            if self._connector_ob_type == 'dist':
-                state['connector_ob'] = np.array(
-                    [np.linalg.norm(site1 - site2) for site1, site2 in connector_pair_positions]
-                )
-            else:
-                raise NotImplementedError
+            state['connector_ob'] = np.array(conn_dists)
 
         return state
 
-    def _get_oracle_object_info(self):
+    def _get_oracle_connector_info(self):
         dim = self.n_connectors * (1 + 2 + 1 + 3) # siteid(1), obj ids (2), welded (1), position (3)
         info = np.zeros(dim)
 
@@ -1480,7 +1478,7 @@ class FurnitureEnv(metaclass=EnvMeta):
                     robot_jpos_getter=self._robot_jpos_getter,
                 )
 
-        connector_dict = {}
+        connector_dict = OrderedDict()
         body_ids = {obj_name: self.sim.model.body_name2id(obj_name) for obj_name in self._object_names}
         for j, site in enumerate(self.sim.model.site_names):
             if 'conn_site' in site:
@@ -1518,14 +1516,14 @@ class FurnitureEnv(metaclass=EnvMeta):
 
         self._connector_dict = connector_dict
 
-        obj_ids_to_connector_idx = {}
+        obj_ids_to_connector_idx = OrderedDict()
         for (idx, connector_name) in enumerate(sorted(self._connector_dict.keys())):
             connector = self._connector_dict[connector_name]
             from_obj_id = connector['from_obj_id']
             to_obj_id = connector['to_obj_id']
 
             if from_obj_id not in obj_ids_to_connector_idx:
-                obj_ids_to_connector_idx[from_obj_id] = {}
+                obj_ids_to_connector_idx[from_obj_id] = OrderedDict()
 
             obj_ids_to_connector_idx[from_obj_id][to_obj_id] = idx
         self._obj_ids_to_connector_idx = obj_ids_to_connector_idx
@@ -1921,7 +1919,7 @@ class FurnitureEnv(metaclass=EnvMeta):
 
             ob, reward, done, info = self.step(action)
 
-            # oracle_info = self._get_oracle_object_info()
+            # oracle_info = self._get_oracle_connector_info()
             # for i in range(self.n_connectors):
             #     start_idx = i * (len(oracle_info) // self.n_connectors)
             #     print(oracle_info[start_idx:start_idx+ len(oracle_info) // self.n_connectors])
