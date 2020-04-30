@@ -37,7 +37,7 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         ]
 
         if "connect" in self._config.task_type:
-            assert "num_connected" in self._config.reward_type
+            assert "nc" in self._config.reward_type
 
         if "light_logging" in self._config:
             self._light_logging = self._config.light_logging
@@ -284,7 +284,7 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             info['sel_conn_dist'] = 0
 
         obj1_id, obj2_id = oracle_robot_info
-        if obj2_id == -1 and obs["num_connected_ob"] < ((self.n_connectors // 2) - 1):
+        if obj2_id == -1 and obs["num_connected_ob"] < (self.n_connectors // 2):
             obj2_id = self._task_connect_sequence[-1]
         if obj2_id != -1:
             conn1_idx = self._obj_ids_to_connector_idx[obj1_id][obj2_id]
@@ -300,7 +300,7 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
 
         if self.n_objects == 3:  ### This is a hack for 3 objs for now ###
             obj1_id, obj2_id = oracle_robot_info
-            if obj2_id == -1 and obs["num_connected_ob"] < ((self.n_connectors // 2) - 1):
+            if obj2_id == -1 and obs["num_connected_ob"] < (self.n_connectors // 2):
                 next_obj_id = self._task_connect_sequence[-1]
                 next_conn_idx = list(self._obj_ids_to_connector_idx[next_obj_id].values())[0]
                 conn_pos = oracle_connector_info[
@@ -446,7 +446,7 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                 bv = 0.50
                 inbounds = np.all((state[:,8:11] >= [-bv, -bv, -bv]) & (state[:,8:11] <= [bv, bv, bv]), axis=1)
                 dist += (1 - inbounds.astype(float))
-            elif reward == 'object_in_bounds':
+            elif reward == 'oib':
                 bv = 0.50
                 for i in range(self.n_objects):
                     inbounds = np.all(
@@ -455,7 +455,7 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                     dist += (1 - inbounds.astype(float))
             elif reward == 'select_distance':
                 dist += np.linalg.norm(state[:, 6:8] - goal[:, 6:8], axis=1)
-            elif reward == 'num_connected':
+            elif reward == 'nc':
                 # dist -= state[:, -1] * self._config.num_connected_reward_scale
                 dist += ((self.n_connectors // 2) - state[:, -1]) * self._config.num_connected_reward_scale
             elif reward == 'conn_dist':
@@ -497,9 +497,8 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                 for i in range(batch_size):
                     obj1_id, obj2_id = obs['oracle_robot_info'][i]
                     num_connected = state[i, -1]
-                    if obj2_id == -1 and num_connected < ((self.n_connectors // 2) - 1):
+                    if obj2_id == -1 and num_connected < (self.n_connectors // 2):
                         obj2_id = self._task_connect_sequence[-1]
-
                     if obj2_id != -1:
                         conn1_idx = self._obj_ids_to_connector_idx[obj1_id][obj2_id]
                         conn2_idx = self._obj_ids_to_connector_idx[obj2_id][obj1_id]
@@ -533,7 +532,7 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                 for i in range(batch_size):
                     obj1_id, obj2_id = obs['oracle_robot_info'][i]
                     num_connected = state[i, -1]
-                    if obj2_id == -1 and num_connected < ((self.n_connectors // 2) - 1):
+                    if obj2_id == -1 and num_connected < (self.n_connectors // 2):
                         next_obj_id = self._task_connect_sequence[-1]
                         next_conn_idx = list(self._obj_ids_to_connector_idx[next_obj_id].values())[0]
                         conn_pos = obs['oracle_connector_info'][i,
@@ -547,7 +546,7 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                 for i in range(batch_size):
                     obj1_id, obj2_id = obs['oracle_robot_info'][i]
                     num_connected = state[i, -1]
-                    if obj2_id == -1 and num_connected < ((self.n_connectors // 2) - 1):
+                    if obj2_id == -1 and num_connected < (self.n_connectors // 2):
                         dist[i] += 1.0
             else:
                 raise NotImplementedError
