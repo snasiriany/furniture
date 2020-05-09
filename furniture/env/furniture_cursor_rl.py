@@ -581,8 +581,6 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         """
         Selects an object within cursor_i
         """
-        print(self._config.select_next_obj_only)
-
         for obj_name in self._object_names:
             is_selected = False
             obj_group = self._find_group(obj_name)
