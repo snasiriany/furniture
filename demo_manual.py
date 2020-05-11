@@ -126,6 +126,8 @@ def main(args):
 
     args.select_next_obj_only = False
 
+    args.boundary = [0.5, 0.5, 1.2]
+
     print()
     print("Creating environment (robot: {}, furniture: {}, background: {})".format(
         env_name, furniture_name, background_name))

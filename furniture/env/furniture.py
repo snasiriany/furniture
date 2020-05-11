@@ -46,7 +46,7 @@ class FurnitureEnv(metaclass=EnvMeta):
             "ctrl_reward": 1e-3,
             "init_randomness": 0.001,
             "unstable_penalty": 100,
-            "boundary": 1.5, # XYZ cube boundary
+            "boundary": [1.5, 1.5, 1.5], # XYZ cube boundary
             "pos_dist": 0.1,
             "rot_dist_up": 0.9,
             "rot_dist_forward": 0.9,
@@ -564,8 +564,8 @@ class FurnitureEnv(metaclass=EnvMeta):
         self.sim.step()
         min_pos, max_pos = self._get_bounding_box(obj_name)
         b = self._env_config["boundary"]
-        if (min_pos < np.array([-b, -b, -0.05])).any() or \
-                (max_pos > np.array([b, b, b])).any():
+        if (min_pos < np.array([-b[0], -b[1], -0.05])).any() or \
+                (max_pos > np.array([b[0], b[1], b[2]])).any():
             return False
         return True
 

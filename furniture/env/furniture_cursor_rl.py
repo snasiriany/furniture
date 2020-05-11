@@ -431,10 +431,33 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
 
     def compute_rewards(self, actions, obs, prev_obs=None, reward_type=None):
         ### For multiworld envs only! ###
-        state = obs["state_observation"]
+        state = obs["state_achieved_goal"]
         goal = obs["state_desired_goal"]
 
+        assert len(state) == 1
         rewards = self._config.reward_type.split('+')
+        if 'task_id' in obs:
+            if obs['task_id'] % 2 == 0:
+                # print('obj')
+                rewards = [
+                    reward for reward in [
+                        'oib',
+                        'nc',
+                        'conn_dist',
+                        'first_conn_dist',
+                        'sel_conn_dist',
+                        'next_conn_dist',
+                    ] if reward in rewards
+                ]
+            else:
+                # print('cursor')
+                rewards = [
+                    reward for reward in [
+                        'oib',
+                        'cursor_dist',
+                        'cursor_sparse_dist',
+                    ] if reward in rewards
+                ]
 
         dist = np.zeros(len(state))
         for reward in rewards:
@@ -483,7 +506,7 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                             dist += np.linalg.norm(conn1_pos - conn2_pos, axis=1)
             elif reward == 'sel_conn_dist':
                 connector_info_dim = len(obs['oracle_connector_info'][0]) // self.n_connectors
-                batch_size = len(obs['state_observation'])
+                batch_size = len(obs['state_achieved_goal'])
 
                 for i in range(batch_size):
                     obj1_id, obj2_id = obs['oracle_robot_info'][i]
@@ -499,7 +522,7 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                         dist[i] += np.linalg.norm(conn1_pos - conn2_pos)
             elif reward == 'next_conn_dist':
                 connector_info_dim = len(obs['oracle_connector_info'][0]) // self.n_connectors
-                batch_size = len(obs['state_observation'])
+                batch_size = len(obs['state_achieved_goal'])
 
                 for i in range(batch_size):
                     obj1_id, obj2_id = obs['oracle_robot_info'][i]
@@ -522,7 +545,7 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                         dist[i] += np.linalg.norm(conn1_pos - conn2_pos)
             elif reward == 'first_conn_dist':
                 connector_info_dim = len(obs['oracle_connector_info'][0]) // self.n_connectors
-                batch_size = len(obs['state_observation'])
+                batch_size = len(obs['state_achieved_goal'])
 
                 for i in range(batch_size):
                     obj1_id, obj2_id = obs['oracle_robot_info'][i]
@@ -538,7 +561,7 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                         dist[i] += np.linalg.norm(conn1_pos - conn2_pos)
             elif reward == 'cursor_dist':
                 connector_info_dim = len(obs['oracle_connector_info'][0]) // self.n_connectors
-                batch_size = len(obs['state_observation'])
+                batch_size = len(obs['state_achieved_goal'])
                 for i in range(batch_size):
                     obj1_id, obj2_id = obs['oracle_robot_info'][i]
                     num_connected = state[i, -1]
@@ -555,7 +578,7 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
 
                         dist[i] += np.linalg.norm(cursor_pos - conn_pos)
             elif reward == 'cursor_sparse_dist':
-                batch_size = len(obs['state_observation'])
+                batch_size = len(obs['state_achieved_goal'])
                 for i in range(batch_size):
                     obj1_id, obj2_id = obs['oracle_robot_info'][i]
                     num_connected = state[i, -1]
@@ -605,3 +628,11 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                 else:
                     raise NotImplementedError
         return None
+
+    def get_contextual_diagnostics(self, paths, contexts):
+        diagnostics = OrderedDict()
+        return diagnostics
+
+    def goal_conditioned_diagnostics(self, paths, contexts):
+        diagnostics = OrderedDict()
+        return diagnostics

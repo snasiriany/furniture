@@ -149,7 +149,11 @@ class FurnitureMultiworld(MultitaskEnv):
         self.set_state(qpos, qvel)
 
     def sample_goals(self, batch_size):
-        assert False
+        goals = np.zeros((batch_size, len(self._state_goal)))
+        return {
+            'desired_goal': goals,
+            'state_desired_goal': goals,
+        }
 
     def get_goal(self):
         return {
