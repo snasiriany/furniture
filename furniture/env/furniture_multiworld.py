@@ -52,6 +52,7 @@ class FurnitureMultiworld(MultitaskEnv):
                 dim = self._wrapped_env.n_connectors * 3
             else:
                 raise NotImplementedError
+            dim += self._wrapped_env.n_connectors // 2
             connector_space = Box(-1 * np.ones(dim), 1 * np.ones(dim), dtype=np.float32)
             obs_space = concatenate_box_spaces(obs_space, connector_space)
         if self._config.num_connected_ob:

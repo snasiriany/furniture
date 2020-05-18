@@ -128,6 +128,8 @@ def main(args):
 
     args.boundary = [0.5, 0.5, 1.2]
 
+    args.task_type = "reach2+select2+connect"
+
     print()
     print("Creating environment (robot: {}, furniture: {}, background: {})".format(
         env_name, furniture_name, background_name))

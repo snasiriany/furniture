@@ -1130,6 +1130,7 @@ class FurnitureEnv(metaclass=EnvMeta):
             oracle_connector_info = self._get_oracle_connector_info()
             connector_info_dim = len(oracle_connector_info) // self.n_connectors
             conn_dists = []
+            conn_weldeds = []
             for obj1_id in self._obj_ids_to_connector_idx.keys():
                 for obj2_id in self._obj_ids_to_connector_idx[obj1_id].keys():
                     if obj1_id < obj2_id:
@@ -1142,8 +1143,9 @@ class FurnitureEnv(metaclass=EnvMeta):
                                     (conn2_idx + 1) * connector_info_dim - 3: (conn2_idx + 1) * connector_info_dim]
 
                         conn_dists.append(np.linalg.norm(conn1_pos - conn2_pos))
+                        conn_weldeds.append(oracle_connector_info[conn1_idx * connector_info_dim + 3])
 
-            state['connector_ob'] = np.array(conn_dists)
+            state['connector_ob'] = np.hstack((np.array(conn_dists), np.array(conn_weldeds)))
 
         return state
 

@@ -20,25 +20,6 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             if k in self._config:
                 self._env_config[k] = getattr(self._config, k)
 
-        assert self._config.task_type in [
-            "reach+select+move",
-            "reach+move",
-            "select+move",
-            "move",
-
-            "reach+select+connect+move",
-            "reach+select+connect",
-            "select+connect",
-            "reach+connect",
-            "reach+connect+move",
-            "connect",
-            "select+connect+move",
-            "connect+move",
-        ]
-
-        if "connect" in self._config.task_type:
-            assert "nc" in self._config.reward_type
-
         if "light_logging" in self._config:
             self._light_logging = self._config.light_logging
         else:
@@ -80,6 +61,22 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             return super().dof
 
     def reset(self, furniture_id=None, background=None):
+        if not hasattr(self, "_task_types"):
+            self._task_types = self._config.task_type.split('+')
+            for t in self._task_types:
+                assert t in [
+                    "reach",
+                    "reach2",
+                    "move",
+                    "select",
+                    "select2",
+                    "connect",
+                ]
+
+            if "connect" in self._task_types:
+                assert "nc" in self._config.reward_type
+
+
         ### sample goal by finding valid configuration in sim ###
         if self._config.goal_type == 'fixed':
             assert self.n_objects == 2
@@ -99,7 +96,13 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
 
         ### reset the env
         obs = super().reset(furniture_id=furniture_id, background=background)
-        if "select" not in self._config.task_type:
+        if "select" in self._task_types:
+            pass
+        elif "select2" in self._task_types:
+            low_level_a = np.zeros(15)
+            low_level_a[6] = 1
+            obs, _, _, _ = super()._step(low_level_a)
+        else:
             low_level_a = np.zeros(15)
             low_level_a[6] = 1
             low_level_a[13] = 1
@@ -126,6 +129,7 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                 dim = self.n_connectors * 3
             else:
                 raise NotImplementedError
+            dim += self.n_connectors // 2
             self._state_goal = np.concatenate((self._state_goal, np.zeros(dim)))
         if self._config.num_connected_ob:
             self._state_goal = np.concatenate((self._state_goal, np.zeros(1)))
@@ -185,7 +189,11 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             else:
                 raise NotImplementedError
 
-        if "select" not in self._config.task_type:
+        if "select" in self._task_types:
+            pass
+        elif "select2" in self._task_types:
+            low_level_a[6] = 1
+        else:
             low_level_a[6] = 1
             low_level_a[13] = 1
 
@@ -222,29 +230,21 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         obj_ob = obs["object_ob"]
         obj_goal = self._state_goal[8:8 + self.n_objects * 7]
 
-        obj_xyz_dist, obj_quat_dist, obj_in_bounds = 0, 0, 0
-        bv = 0.50
+        obj_xyz_dist, obj_quat_dist = 0, 0
         for i in range(self.n_objects):
             start_idx = i*7
             xyz_dist = np.linalg.norm(obj_ob[start_idx:start_idx + 3] - obj_goal[start_idx:start_idx + 3])
             quat_dist = np.linalg.norm(obj_ob[start_idx + 3:start_idx + 7] - obj_goal[start_idx + 3:start_idx + 7])
-            in_bounds = np.all(
-                (obj_ob[start_idx:start_idx + 3] >= [-bv, -bv, -bv]) & (obj_ob[start_idx:start_idx + 3] <= [bv, bv, bv])
-            ).astype(float)
 
             if not self._light_logging:
                 info['obj{}_xyz_dist'.format(i + 1)] = xyz_dist
                 info['obj{}_quat_dist'.format(i + 1)] = quat_dist
 
-            info['obj{}_in_bounds'.format(i + 1)] = in_bounds
-
             obj_xyz_dist += xyz_dist
             obj_quat_dist += quat_dist
-            obj_in_bounds += obj_in_bounds
 
         info['obj_xyz_dist'] = obj_xyz_dist
         info['obj_quat_dist'] = obj_quat_dist
-        info['obj_in_bounds'] = obj_in_bounds
 
         oracle_connector_info = self._get_oracle_connector_info()
         oracle_robot_info = self._get_oracle_robot_info()
@@ -392,11 +392,17 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
 
         return pos_init, quat_init
 
+    def _sample_cursor_position(self):
+        return np.random.uniform(low=[-0.5, -0.5, self._move_speed / 2], high=[0.5, 0.5, 0.5])
+
     def _initialize_robot_pos(self):
         """
         Initializes robot posision with random noise perturbation
         """
-        if "reach" not in self._config.task_type:
+        if "reach" in self._task_types:
+            self._set_pos('cursor0', self._sample_cursor_position()) #[-0.2, 0., self._move_speed / 2]
+            self._set_pos('cursor1', self._sample_cursor_position()) #[0.2, 0., self._move_speed / 2]
+        else:
             if self._task_connect_sequence is not None:
                 cursor0_idx, cursor1_idx = self._task_connect_sequence[0:2]
             else:
@@ -425,9 +431,9 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                 # self._set_pos(cursor_name, [site_pos[0], site_pos[1], self._move_speed / 2])
                 if cursor_name is not None:
                     self._set_pos(cursor_name, [site_pos[0], site_pos[1], max(self._move_speed / 2, site_pos[2])])
-        else:
-            self._set_pos('cursor0', [-0.2, 0., self._move_speed / 2])
-            self._set_pos('cursor1', [0.2, 0., self._move_speed / 2])
+
+            if "reach2" in self._task_types:
+                self._set_pos('cursor1', self._sample_cursor_position()) # [0.2, 0., self._move_speed / 2]
 
     def compute_rewards(self, actions, obs, prev_obs=None, reward_type=None):
         ### For multiworld envs only! ###
@@ -436,30 +442,45 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
 
         assert len(state) == 1
         rewards = self._config.reward_type.split('+')
-        if 'task_id' in obs:
-            if obs['task_id'] % 2 == 0:
-                # print('obj')
-                rewards = [
-                    reward for reward in [
-                        'oib',
-                        'nc',
-                        'conn_dist',
-                        'first_conn_dist',
-                        'sel_conn_dist',
-                        'next_conn_dist',
-                    ] if reward in rewards
-                ]
-            else:
-                # print('cursor')
-                rewards = [
-                    reward for reward in [
-                        'oib',
-                        'cursor_dist',
-                        'cursor_sparse_dist',
-                    ] if reward in rewards
-                ]
 
         dist = np.zeros(len(state))
+
+        if 'task_id' in obs:
+            connector_info_dim = len(obs['oracle_connector_info'][0]) // self.n_connectors
+            batch_size = len(obs['state_achieved_goal'])
+
+            for i in range(batch_size):
+                # next connector distance
+                obj1_id, _ = obs['oracle_robot_info'][i]
+                task_obj_id = obs['task_id'][i][0] # desired object to connect
+                conn1_idx = self._obj_ids_to_connector_idx[obj1_id][task_obj_id]
+                conn2_idx = self._obj_ids_to_connector_idx[task_obj_id][obj1_id]
+                conn1_pos = obs['oracle_connector_info'][i,
+                            (conn1_idx + 1) * connector_info_dim - 3: (conn1_idx + 1) * connector_info_dim]
+                conn2_pos = obs['oracle_connector_info'][i,
+                            (conn2_idx + 1) * connector_info_dim - 3: (conn2_idx + 1) * connector_info_dim]
+                if 'next_conn_dist' in rewards:
+                    dist[i] += np.linalg.norm(conn1_pos - conn2_pos)
+
+                # next connector welded distance
+                welded = obs['oracle_connector_info'][i, conn1_idx * connector_info_dim + 3]
+                if 'nc' in rewards:
+                    dist[i] += (1 - welded)
+
+                if not welded:
+                    # cursor distance (if need to connect to object)
+                    if 'cursor_dist' in rewards:
+                        cursor_pos = state[i, 3:6]
+                        dist[i] += np.linalg.norm(cursor_pos - conn2_pos)
+
+                    # cursor sparse distance (if need to connect to object)
+                    if 'cursor_sparse_dist' in rewards:
+                        _, obj2_id = obs['oracle_robot_info'][i]
+                        if obj2_id != task_obj_id:
+                            dist[i] += 1.0
+
+            rewards = []
+
         for reward in rewards:
             if reward == 'state_distance':
                 dist += np.linalg.norm(state - goal, axis=1)
@@ -473,17 +494,6 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                     dist += np.linalg.norm(state[:, 8 + 7 * i:8 + 7 * i + 3] - goal[:, 8 + 7 * i:8 + 7 * i + 3], axis=1)
             elif reward == 'object1_xyz_distance':
                 dist += np.linalg.norm(state[:,8:11] - goal[:, 8:11], axis=1)
-            elif reward == 'object1_xyz_in_bounds':
-                bv = 0.50
-                inbounds = np.all((state[:,8:11] >= [-bv, -bv, -bv]) & (state[:,8:11] <= [bv, bv, bv]), axis=1)
-                dist += (1 - inbounds.astype(float))
-            elif reward == 'oib':
-                bv = 0.50
-                for i in range(self.n_objects):
-                    inbounds = np.all(
-                        (state[:,8+7*i:8+7*i+3] >= [-bv, -bv, -bv]) & (state[:,8+7*i:8+7*i+3] <= [bv, bv, bv]), axis=1
-                    )
-                    dist += (1 - inbounds.astype(float))
             elif reward == 'select_distance':
                 dist += np.linalg.norm(state[:, 6:8] - goal[:, 6:8], axis=1)
             elif reward == 'nc':
