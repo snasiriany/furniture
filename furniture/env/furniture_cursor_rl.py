@@ -73,9 +73,6 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                     "connect",
                 ]
 
-            if "connect" in self._task_types:
-                assert "nc" in self._config.reward_type
-
 
         ### sample goal by finding valid configuration in sim ###
         if self._config.goal_type == 'fixed':
@@ -267,6 +264,12 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                                 (conn1_idx + 1) * connector_info_dim - 3: (conn1_idx + 1) * connector_info_dim]
                     conn2_pos = oracle_connector_info[
                                 (conn2_idx + 1) * connector_info_dim - 3: (conn2_idx + 1) * connector_info_dim]
+                    welded = oracle_connector_info[conn1_idx*connector_info_dim + 3]
+
+                    if welded or oracle_robot_info[1] == obj2_id:
+                        info['cursor_conn{}_dist'.format(info_idx + 1)] = 0
+                    else:
+                        info['cursor_conn{}_dist'.format(info_idx + 1)] = np.linalg.norm(conn2_pos - obs["robot_ob"][3:6])
 
                     info['conn{}_dist'.format(info_idx + 1)] = np.linalg.norm(conn1_pos - conn2_pos)
                     conn_dist += info['conn{}_dist'.format(info_idx + 1)]
@@ -468,14 +471,16 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                     dist[i] += (1 - welded)
 
                 if not welded:
+                    _, obj2_id = obs['oracle_robot_info'][i]
+
                     # cursor distance (if need to connect to object)
                     if 'cursor_dist' in rewards:
-                        cursor_pos = state[i, 3:6]
-                        dist[i] += np.linalg.norm(cursor_pos - conn2_pos)
+                        if obj2_id != task_obj_id:
+                            cursor_pos = state[i, 3:6]
+                            dist[i] += np.linalg.norm(cursor_pos - conn2_pos)
 
                     # cursor sparse distance (if need to connect to object)
                     if 'cursor_sparse_dist' in rewards:
-                        _, obj2_id = obs['oracle_robot_info'][i]
                         if obj2_id != task_obj_id:
                             dist[i] += 1.0
 
