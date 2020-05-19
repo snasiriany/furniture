@@ -72,7 +72,6 @@ class FurnitureMultiworld(MultitaskEnv):
             1 * np.ones(oracle_robot_info_dim),
             dtype=np.float32
         )
-
         self.observation_space = Dict([
             ('observation', obs_space),
             ('desired_goal',obs_space),

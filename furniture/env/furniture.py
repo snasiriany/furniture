@@ -147,7 +147,10 @@ class FurnitureEnv(metaclass=EnvMeta):
         if self._object_ob:
             # can be changed to the desired number depending on the task
             # ob_space['object_ob'] = [(3 + 4) * 2]
-            ob_space['object_ob'] = [(3 + 4) * self.n_objects]
+            if self._obj_joint_type == 'slide':
+                ob_space['object_ob'] = [(3) * self.n_objects]
+            else:
+                ob_space['object_ob'] = [(3 + 4) * self.n_objects]
 
         if self._subtask_ob:
             ob_space['subtask_ob'] = 2
@@ -1107,7 +1110,8 @@ class FurnitureEnv(metaclass=EnvMeta):
                 obj_pos = self._get_pos(obj_name)
                 obj_quat = self._get_quat(obj_name)
                 obj_states["{}_pos".format(obj_name)] = obj_pos
-                obj_states["{}_quat".format(obj_name)] = obj_quat
+                if self._obj_joint_type != 'slide':
+                    obj_states["{}_quat".format(obj_name)] = obj_quat
 
             # if self._subtask_part1 == -1:
             #     obj_states["dummy"] = np.zeros(14)

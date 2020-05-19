@@ -49,6 +49,11 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                 rotate = 3
                 select = 1
                 connect = 1
+            elif self._config.control_degrees == '3dpos+select+connect':
+                move = 3
+                rotate = 0
+                select = 1
+                connect = 1
             elif self._config.control_degrees == '2dpos+select':
                 move = 2
                 select = 1
@@ -73,6 +78,11 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                     "connect",
                 ]
 
+        if not hasattr(self, "_obj_dim"):
+            if self._obj_joint_type == 'slide':
+                self._obj_dim = 3
+            else:
+                self._obj_dim = 7
 
         ### sample goal by finding valid configuration in sim ###
         if self._config.goal_type == 'fixed':
@@ -87,7 +97,7 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         elif self._config.goal_type == 'zeros':
             if not hasattr(self, 'n_objects'):
                 super().reset(furniture_id=furniture_id, background=background)
-            object_goal = np.zeros(self.n_objects*7)
+            object_goal = np.zeros(self.n_objects*self._obj_dim)
         else:
             raise NotImplementedError
 
@@ -112,7 +122,7 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         robot_goal = np.zeros(robot_ob.size)
         if self._config.goal_type is not 'zeros':
             robot_goal[0:3] = object_goal[0:3]
-            robot_goal[3:6] = object_goal[7:10]
+            robot_goal[3:6] = object_goal[self._obj_dim:self._obj_dim+3]
             robot_goal[6] = 1
             robot_goal[7] = 1
 
@@ -151,6 +161,12 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                 low_level_a[0:7] = a[0:7]
                 low_level_a[7:14] = a[7:14]
                 low_level_a[14] = a[14]
+            elif self._config.control_degrees == '3dpos+select+connect':
+                low_level_a[0:3] = a[0:3]
+                low_level_a[7:10] = a[3:6]
+                low_level_a[6] = a[6]
+                low_level_a[13] = a[7]
+                low_level_a[14] = a[8]
             elif self._config.control_degrees == '3dpos':
                 raise NotImplementedError
             elif self._config.control_degrees == '3dpos+3drot':
@@ -225,23 +241,19 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         )
 
         obj_ob = obs["object_ob"]
-        obj_goal = self._state_goal[8:8 + self.n_objects * 7]
+        obj_goal = self._state_goal[8:8 + self.n_objects * self._obj_dim]
 
-        obj_xyz_dist, obj_quat_dist = 0, 0
+        obj_xyz_dist = 0
         for i in range(self.n_objects):
-            start_idx = i*7
+            start_idx = i*self._obj_dim
             xyz_dist = np.linalg.norm(obj_ob[start_idx:start_idx + 3] - obj_goal[start_idx:start_idx + 3])
-            quat_dist = np.linalg.norm(obj_ob[start_idx + 3:start_idx + 7] - obj_goal[start_idx + 3:start_idx + 7])
 
             if not self._light_logging:
                 info['obj{}_xyz_dist'.format(i + 1)] = xyz_dist
-                info['obj{}_quat_dist'.format(i + 1)] = quat_dist
 
             obj_xyz_dist += xyz_dist
-            obj_quat_dist += quat_dist
 
         info['obj_xyz_dist'] = obj_xyz_dist
-        info['obj_quat_dist'] = obj_quat_dist
 
         oracle_connector_info = self._get_oracle_connector_info()
         oracle_robot_info = self._get_oracle_robot_info()
@@ -336,11 +348,11 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
     def set_to_goal(self, goal):
         state_goal = goal['state_desired_goal']
         if self._obj_joint_type == 'free':
-            qpos = state_goal[8 : 8+7*self.n_objects].copy()
+            qpos = state_goal[8 : 8+self._obj_dim*self.n_objects].copy()
         elif self._obj_joint_type == 'slide':
             positions = []
             for i in range(self.n_objects):
-                start_idx = 8 + i*7
+                start_idx = 8 + i*self._obj_dim
                 positions.append(state_goal[start_idx:start_idx+3])
             qpos = np.concatenate(positions)
         else:
@@ -491,12 +503,20 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                 dist += np.linalg.norm(state - goal, axis=1)
             elif reward == 'object_distance':
                 for i in range(self.n_objects):
-                    dist += np.linalg.norm(state[:,8+7*i:8+7*i+7] - goal[:,8+7*i:8+7*i+7], axis=1)
+                    dist += np.linalg.norm(
+                        state[:,8+self._obj_dim*i:8+self._obj_dim*i+self._obj_dim] -
+                        goal[:,8+self._obj_dim*i:8+self._obj_dim*i+self._obj_dim],
+                        axis=1
+                    )
             elif reward == 'object1_distance':
                 dist += np.linalg.norm(state[:,8:15] - goal[:,8:15], axis=1)
             elif reward == 'object_xyz_distance':
                 for i in range(self.n_objects):
-                    dist += np.linalg.norm(state[:, 8 + 7 * i:8 + 7 * i + 3] - goal[:, 8 + 7 * i:8 + 7 * i + 3], axis=1)
+                    dist += np.linalg.norm(
+                        state[:, 8 + self._obj_dim * i:8 + self._obj_dim * i + 3] -
+                        goal[:, 8 + self._obj_dim * i:8 + self._obj_dim * i + 3],
+                        axis=1
+                    )
             elif reward == 'object1_xyz_distance':
                 dist += np.linalg.norm(state[:,8:11] - goal[:, 8:11], axis=1)
             elif reward == 'select_distance':
