@@ -128,7 +128,9 @@ def main(args):
 
     args.boundary = [0.5, 0.5, 1.2]
 
-    args.task_type = "reach2+select2+connect"
+    # args.task_type = "reach2+select2+connect"
+    # args.task_type = "reach2+select2"
+    args.task_type = "reach2"
 
     print()
     print("Creating environment (robot: {}, furniture: {}, background: {})".format(

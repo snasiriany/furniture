@@ -537,20 +537,30 @@ class FurnitureEnv(metaclass=EnvMeta):
             self._set_qpos(obj_name, pos_rot[:3], pos_rot[3:])
         return False
 
-    def _get_bounding_box(self, obj_name):
+    def _get_bounding_box(self, obj_name, obj_only=False):
         """
         Gets the bounding box of the object
         """
         body_ids = []
         part_idx = self._object_name2id[obj_name]
-        for i, body_name in enumerate(self._object_names):
-            if self._find_group(i) == self._find_group(part_idx):
-                body_id = self.sim.model.body_name2id(body_name)
-                body_ids.append(body_id)
+
+        if obj_only:
+            body_id = self.sim.model.body_name2id(obj_name)
+            body_ids.append(body_id)
+        else:
+            for i, body_name in enumerate(self._object_names):
+                if self._find_group(i) == self._find_group(part_idx):
+                    body_id = self.sim.model.body_name2id(body_name)
+                    body_ids.append(body_id)
+
 
         body_id = self.sim.model.body_name2id(obj_name)
-        min_pos = np.array([0, 0, 0])
-        max_pos = np.array([0, 0, 0])
+        # min_pos = np.array([0, 0, 0])
+        # max_pos = np.array([0, 0, 0])
+
+        min_pos = np.array([10, 10, 10])
+        max_pos = np.array([-10, -10, -10])
+
         for i, site in enumerate(self.sim.model.site_names):
             if self.sim.model.site_bodyid[i] in body_ids:
                 pos = self._get_pos(site)
@@ -585,6 +595,7 @@ class FurnitureEnv(metaclass=EnvMeta):
 
             if not is_selected and self.on_collision('cursor%d' % cursor_i, obj_name):
                 return obj_name
+
         return None
 
     def _step_discrete(self, a):

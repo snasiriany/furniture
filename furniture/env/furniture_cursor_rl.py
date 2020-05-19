@@ -210,6 +210,9 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             low_level_a[6] = 1
             low_level_a[13] = 1
 
+        if "connect" not in self._task_types:
+            low_level_a[14] = 1
+
         ob, reward, done, _ = super()._step(low_level_a)
 
         info = self._get_info(action=a)
@@ -645,7 +648,15 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             for selected_obj in self._cursor_selected:
                 if selected_obj and obj_group == self._find_group(selected_obj):
                     is_selected = True
-            if not is_selected and self.on_collision('cursor%d' % cursor_i, obj_name):
+
+            min_pos, max_pos = self._get_bounding_box(obj_name, obj_only=True)
+            cursor_pos = self._get_pos('cursor%d' % cursor_i)
+            is_in_bounded_area = False
+            if (cursor_pos >= np.array(min_pos)).all() and \
+                    (cursor_pos <= np.array(max_pos)).all():
+                is_in_bounded_area = True
+
+            if not is_selected and (self.on_collision('cursor%d' % cursor_i, obj_name) or is_in_bounded_area):
                 if cursor_i == 0:
                     return obj_name
                 elif cursor_i == 1:
