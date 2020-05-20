@@ -89,7 +89,7 @@ def main(args):
     args.background = background_name
 
     ### added by Soroush ###
-    args.debug = False
+    # args.debug = False
     args.spacemouse_input = True
 
     # args.fixed_reset = False
@@ -102,7 +102,7 @@ def main(args):
     args.reward_type = 'object1_xyz_distance+num_connected'
     # args.fixed_goal = False
     args.preempt_collisions = True
-    args.print_debug_info = True
+    # args.print_debug_info = True
 
     args.obj_joint_type = "slide"
     args.connector_ob_type = "dist"
@@ -129,8 +129,10 @@ def main(args):
     args.boundary = [0.5, 0.5, 1.2]
 
     # args.task_type = "reach2+select2+connect"
-    # args.task_type = "reach2+select2"
-    args.task_type = "reach2"
+    args.task_type = "reach2+select2"
+    # args.task_type = "reach2+select2+move2"
+
+    args.anchor_objects = ['1_column']
 
     print()
     print("Creating environment (robot: {}, furniture: {}, background: {})".format(

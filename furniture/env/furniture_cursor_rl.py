@@ -72,7 +72,7 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                 assert t in [
                     "reach",
                     "reach2",
-                    "move",
+                    "move2",
                     "select",
                     "select2",
                     "connect",
@@ -212,6 +212,9 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
 
         if "connect" not in self._task_types:
             low_level_a[14] = 1
+
+        if "move2" in self._task_types:
+            low_level_a[0:6] = 0
 
         ob, reward, done, _ = super()._step(low_level_a)
 

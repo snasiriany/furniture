@@ -89,6 +89,11 @@ class FurnitureEnv(metaclass=EnvMeta):
         else:
             self._obj_joint_type = 'free'
 
+        if 'anchor_objects' in self._config:
+            self._anchor_objects = self._config.anchor_objects
+        else:
+            self._anchor_objects = []
+
         if 'print_debug_info' in self._config:
             self._print_debug_info = self._config.print_debug_info
         else:
@@ -630,7 +635,6 @@ class FurnitureEnv(metaclass=EnvMeta):
                     # reset cursor to original position
                     self._move_cursor(cursor_i, -move_offset)
                     continue
-
             if select:
                 if self._cursor_selected[cursor_i] is None:
                     self._cursor_selected[cursor_i] = self._select_object(cursor_i)
@@ -1635,6 +1639,7 @@ class FurnitureEnv(metaclass=EnvMeta):
             self.mujoco_equality,
             self._rng,
             obj_joint_type=self._obj_joint_type,
+            anchor_objects=self._anchor_objects,
         )
 
     def save_demo(self, fname='test.pkl'):
