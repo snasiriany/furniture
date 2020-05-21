@@ -111,7 +111,9 @@ def main(args):
     # args.reset_type = 'var_2dpos+objs_near'
     # args.reset_type = 'var_2dpos+var_1drot'
     args.reset_type = 'var_2dpos+no_rot'
-    args.goal_type = 'reset'
+
+    # args.goal_type = 'reset'
+    args.goal_type = 'assembled'
 
     args.pos_dist = 0.2,
     # args.rot_dist_up = -np.inf

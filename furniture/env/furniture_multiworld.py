@@ -149,7 +149,17 @@ class FurnitureMultiworld(MultitaskEnv):
         self.set_state(qpos, qvel)
 
     def sample_goals(self, batch_size):
+        b = np.array(self._wrapped_env._env_config["boundary"])
+        low = -b.copy()
+        low[2] = -0.05
+        high = b.copy()
+
         goals = np.zeros((batch_size, len(self._state_goal)))
+        goals[:, 0:3] = np.random.uniform(low, high, (batch_size, 3))
+        goals[:, 3:6] = np.random.uniform(low, high, (batch_size, 3))
+        for i in range(self._wrapped_env.n_objects):
+            start = 8 + i * self._wrapped_env._obj_dim
+            goals[:, start:start+3] = np.random.uniform(low, high, (batch_size, 3))
         return {
             'desired_goal': goals,
             'state_desired_goal': goals,

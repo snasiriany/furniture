@@ -98,6 +98,8 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             if not hasattr(self, 'n_objects'):
                 super().reset(furniture_id=furniture_id, background=background)
             object_goal = np.zeros(self.n_objects*self._obj_dim)
+        elif self._config.goal_type == 'assembled':
+            pass
         else:
             raise NotImplementedError
 
@@ -115,14 +117,34 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             low_level_a[13] = 1
             obs, _, _, _ = super()._step(low_level_a)
 
+        if self._config.goal_type == 'assembled':
+            assert len(self._anchor_objects) == 1
+            assert self._obj_joint_type == 'slide'
+            object_goal = obs['object_ob'].copy()
+            anchor_id = self._object_name2id[self._anchor_objects[0]]
+            conn_info = self._get_oracle_connector_info()
+            conn_info_dim = len(conn_info) // self.n_connectors
+            for obj_id, obj_name in enumerate(self._object_names):
+                if obj_id == anchor_id:
+                    continue
+
+                conn1_idx = self._obj_ids_to_connector_idx[obj_id][anchor_id]
+                conn2_idx = self._obj_ids_to_connector_idx[anchor_id][obj_id]
+                conn1_pos = conn_info[(conn1_idx + 1) * conn_info_dim - 3: (conn1_idx + 1) * conn_info_dim]
+                conn2_pos = conn_info[(conn2_idx + 1) * conn_info_dim - 3: (conn2_idx + 1) * conn_info_dim]
+
+                start = obj_id * 3
+                end = start + 3
+                object_goal[start:end] = conn2_pos + self._get_qpos(obj_name) - conn1_pos
+
         # set the goal
         robot_ob = obs['robot_ob'].copy()
         object_ob = obs['object_ob'].copy()
 
         robot_goal = np.zeros(robot_ob.size)
         if self._config.goal_type is not 'zeros':
-            robot_goal[0:3] = object_goal[0:3]
-            robot_goal[3:6] = object_goal[self._obj_dim:self._obj_dim+3]
+            robot_goal[0:3] = self._sample_cursor_position()
+            robot_goal[3:6] = self._sample_cursor_position()
             robot_goal[6] = 1
             robot_goal[7] = 1
 
@@ -239,6 +261,9 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         cursor2_selected = cursor2_ob[3]
 
         info = dict(
+            cursor1_dist=np.linalg.norm(obs["robot_ob"][0:3] - self._state_goal[0:3]),
+            cursor2_dist=np.linalg.norm(obs["robot_ob"][3:6] - self._state_goal[3:6]),
+
             cursor1_selected=cursor1_selected,
             cursor2_selected=cursor2_selected,
             cursor_selected=cursor1_selected + cursor2_selected,
@@ -357,9 +382,15 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             qpos = state_goal[8 : 8+self._obj_dim*self.n_objects].copy()
         elif self._obj_joint_type == 'slide':
             positions = []
-            for i in range(self.n_objects):
+            for (i, obj_name) in enumerate(self._object_names):
                 start_idx = 8 + i*self._obj_dim
-                positions.append(state_goal[start_idx:start_idx+3])
+                position = state_goal[start_idx:start_idx + 3].copy()
+
+                from furniture.env.mjcf_utils import string_to_array
+                position -= string_to_array(
+                    self.mujoco_objects[obj_name].worldbody.find("./body[@name='%s']" % obj_name).get("pos"))
+
+                positions.append(position)
             qpos = np.concatenate(positions)
         else:
             raise NotImplementedError
@@ -461,7 +492,7 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         state = obs["state_achieved_goal"]
         goal = obs["state_desired_goal"]
 
-        assert len(state) == 1
+        assert (len(state) == 1) or ('mask' in obs)
         rewards = self._config.reward_type.split('+')
 
         dist = np.zeros(len(state))
@@ -501,7 +532,9 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                     if 'cursor_sparse_dist' in rewards:
                         if obj2_id != task_obj_id:
                             dist[i] += 1.0
-
+            rewards = []
+        elif 'mask' in obs:
+            dist += np.linalg.norm((state - goal) * obs['mask'], axis=1)
             rewards = []
 
         for reward in rewards:
