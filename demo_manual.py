@@ -102,7 +102,7 @@ def main(args):
     args.reward_type = 'object1_xyz_distance+num_connected'
     # args.fixed_goal = False
     args.preempt_collisions = True
-    # args.print_debug_info = True
+    args.print_debug_info = True
 
     args.obj_joint_type = "slide"
     args.connector_ob_type = "dist"
@@ -131,8 +131,11 @@ def main(args):
     args.boundary = [0.5, 0.5, 1.2]
 
     # args.task_type = "reach2+select2+connect"
-    args.task_type = "reach2+select2"
+    # args.task_type = "reach2+select2"
     # args.task_type = "reach2+select2+move2"
+    args.task_type = "move2"
+
+    args.clip_action_on_collision = True
 
     args.anchor_objects = ['1_column']
 

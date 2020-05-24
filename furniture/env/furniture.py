@@ -627,14 +627,32 @@ class FurnitureEnv(metaclass=EnvMeta):
                     print('could not move cursor')
                 continue
             if self._cursor_selected[cursor_i] is not None:
-                success = self._move_rotate_object(
-                    self._cursor_selected[cursor_i], move_offset, rotate_offset)
-                if not success:
-                    if self._debug:
-                        print('could not move cursor due to object out of boundary')
-                    # reset cursor to original position
-                    self._move_cursor(cursor_i, -move_offset)
-                    continue
+                if (not "clip_action_on_collision" in self._config) or (not self._config.clip_action_on_collision):
+                    success = self._move_rotate_object(
+                        self._cursor_selected[cursor_i], move_offset, rotate_offset)
+                    if not success:
+                        if self._debug:
+                            print('could not move cursor')
+                        # reset cursor to original position
+                        self._move_cursor(cursor_i, -move_offset)
+                        continue
+                else:
+                    move_offsets = np.tile(move_offset, 4).reshape((4, 3))
+                    move_offsets[1][0] = 0.0
+                    move_offsets[2][1] = 0.0
+                    move_offsets[3][2] = 0.0
+                    for move_offset in move_offsets:
+                        success = self._move_rotate_object(
+                            self._cursor_selected[cursor_i], move_offset, rotate_offset)
+                        if success:
+                            break
+                    if not success:
+                        if self._debug:
+                            print('could not move cursor')
+                        self._move_cursor(cursor_i, -move_offsets[0])
+                        continue
+                    else:
+                        self._move_cursor(cursor_i, -move_offsets[0] + move_offset)
             if select:
                 if self._cursor_selected[cursor_i] is None:
                     self._cursor_selected[cursor_i] = self._select_object(cursor_i)
@@ -913,7 +931,7 @@ class FurnitureEnv(metaclass=EnvMeta):
                 is_rot_forward_aligned:
             return True
 
-        if self._debug or self._print_debug_info:
+        if self._debug: #or self._print_debug_info:
             if pos_dist >= self._env_config['pos_dist']:
                 print('(connect) two parts are too far ({} >= {})'.format(pos_dist, self._env_config['pos_dist']))
             elif rot_dist_up <= self._env_config['rot_dist_up']:
