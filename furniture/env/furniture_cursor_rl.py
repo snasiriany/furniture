@@ -278,46 +278,44 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         return ob, reward, done, info
 
     def _get_info(self):
-        obs = self._get_obs()
-
-        state_ob = np.concatenate((obs["robot_ob"], obs["object_ob"]))
-        if self._connector_ob_type is not None:
-            state_ob = np.concatenate((state_ob, obs["connector_ob"]))
-        if self._config.num_connected_ob:
-            state_ob = np.concatenate((state_ob, obs["num_connected_ob"]))
-        state_distance = np.linalg.norm(state_ob - self._state_goal)
-
-        cursor1_ob = np.concatenate((obs["robot_ob"][0:3], obs["robot_ob"][6:7]))
-        cursor2_ob = np.concatenate((obs["robot_ob"][3:6], obs["robot_ob"][7:8]))
-
-        cursor1_selected = cursor1_ob[3]
-        cursor2_selected = cursor2_ob[3]
-
         info = dict(
-            cursor1_dist=np.linalg.norm(obs["robot_ob"][0:3] - self._state_goal[0:3]),
-            cursor2_dist=np.linalg.norm(obs["robot_ob"][3:6] - self._state_goal[3:6]),
-
-            cursor1_selected=cursor1_selected,
-            cursor2_selected=cursor2_selected,
-            cursor_selected=cursor1_selected + cursor2_selected,
-
-            state_distance=state_distance,
+            num_connected=self._num_connected,
         )
 
-        obj_ob = obs["object_ob"]
-        obj_goal = self._state_goal[8:8 + self.n_objects * self._obj_dim]
+        obs = self._get_obs()
+        oracle_connector_info = self._get_oracle_connector_info()
+        oracle_robot_info = self._get_oracle_robot_info()
 
-        obj_xyz_dist = 0
-        for i in range(self.n_objects):
-            start_idx = i*self._obj_dim
-            xyz_dist = np.linalg.norm(obj_ob[start_idx:start_idx + 3] - obj_goal[start_idx:start_idx + 3])
+        connector_info_dim = len(oracle_connector_info) // self.n_connectors
+        info_idx = 0
+        conn_dist = 0
+        for obj1_id in self._obj_ids_to_connector_idx.keys():
+            for obj2_id in self._obj_ids_to_connector_idx[obj1_id].keys():
+                if obj1_id < obj2_id:
+                    if obj2_id not in self._obj_ids_to_connector_idx[obj1_id]:
+                        continue
+                    if obj1_id not in self._obj_ids_to_connector_idx[obj2_id]:
+                        continue
 
-            if not self._light_logging:
-                info['obj{}_xyz_dist'.format(i)] = xyz_dist
+                    conn1_idx = self._obj_ids_to_connector_idx[obj1_id][obj2_id]
+                    conn2_idx = self._obj_ids_to_connector_idx[obj2_id][obj1_id]
 
-            obj_xyz_dist += xyz_dist
+                    conn1_pos = oracle_connector_info[
+                                (conn1_idx + 1) * connector_info_dim - 3: (conn1_idx + 1) * connector_info_dim]
+                    conn2_pos = oracle_connector_info[
+                                (conn2_idx + 1) * connector_info_dim - 3: (conn2_idx + 1) * connector_info_dim]
+                    welded = oracle_connector_info[conn1_idx*connector_info_dim + 3]
 
-        info['obj_xyz_dist'] = obj_xyz_dist
+                    if welded or oracle_robot_info[1] == obj2_id:
+                        info['cursor_conn{}_dist'.format(info_idx + 1)] = 0
+                    else:
+                        info['cursor_conn{}_dist'.format(info_idx + 1)] = np.linalg.norm(conn2_pos - obs["robot_ob"][3:6])
+
+                    info['conn{}_dist'.format(info_idx + 1)] = np.linalg.norm(conn1_pos - conn2_pos)
+                    conn_dist += info['conn{}_dist'.format(info_idx + 1)]
+
+                    info_idx += 1
+        info['conn_dist'] = conn_dist
 
         return info
 
@@ -493,6 +491,8 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         stat_to_lists = defaultdict(list)
         for path, goal in zip(paths, goals):
             difference = path['observations'] - goal
+            for k in path['env_infos'][0]:
+                stat_to_lists[k].append([info[k] for info in path['env_infos']])
             for i in range(2):
                 distance_key = 'cursor{}_dist'.format(i)
                 xyz_dist = np.linalg.norm(difference[:, i*3:i*3 + 3], axis=-1)
