@@ -138,8 +138,8 @@ class FurnitureMultiworld(MultitaskEnv):
             oracle_robot_info=self._get_oracle_robot_info(),
         )
 
-    def compute_rewards(self, actions, obs, prev_obs=None, reward_type=None):
-        return self._wrapped_env.compute_rewards(actions, obs, prev_obs, reward_type)
+    def compute_rewards(self, actions, obs):
+        return self._wrapped_env.compute_rewards(actions, obs)
 
     def get_env_state(self):
         return self.get_state()
@@ -149,17 +149,20 @@ class FurnitureMultiworld(MultitaskEnv):
         self.set_state(qpos, qvel)
 
     def sample_goals(self, batch_size):
-        b = np.array(self._wrapped_env._env_config["boundary"])
-        low = -b.copy()
-        low[2] = -0.05
-        high = b.copy()
+        if batch_size == 1:
+            goals = self._wrapped_env.sample_goal_for_rollout()[None]
+        else:
+            b = np.array(self._wrapped_env._env_config["boundary"])
+            low = -b.copy()
+            low[2] = -0.05
+            high = b.copy()
 
-        goals = np.zeros((batch_size, len(self._state_goal)))
-        goals[:, 0:3] = np.random.uniform(low, high, (batch_size, 3))
-        goals[:, 3:6] = np.random.uniform(low, high, (batch_size, 3))
-        for i in range(self._wrapped_env.n_objects):
-            start = 8 + i * self._wrapped_env._obj_dim
-            goals[:, start:start+3] = np.random.uniform(low, high, (batch_size, 3))
+            goals = np.zeros((batch_size, len(self._state_goal)))
+            goals[:, 0:3] = np.random.uniform(low, high, (batch_size, 3))
+            goals[:, 3:6] = np.random.uniform(low, high, (batch_size, 3))
+            for i in range(self._wrapped_env.n_objects):
+                start = 8 + i * self._wrapped_env._obj_dim
+                goals[:, start:start+3] = np.random.uniform(low, high, (batch_size, 3))
         return {
             'desired_goal': goals,
             'state_desired_goal': goals,

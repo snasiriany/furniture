@@ -90,22 +90,19 @@ def main(args):
 
     ### added by Soroush ###
     # args.debug = False
-    args.spacemouse_input = True
+    args.spacemouse_input = False
 
     # args.fixed_reset = False
     args.tight_action_space = False
     # args.control_degrees = '3dpos+select+connect'
     args.control_degrees = '3dpos+3drot+select+connect'
-    args.task_type = 'connect' #'select+move'
-    # args.task_type = 'select+move'
-    # args.task_type = "reach+select+move"
-    args.reward_type = 'object1_xyz_distance+num_connected'
+    args.reward_type = 'object_distance'
     # args.fixed_goal = False
     args.preempt_collisions = True
     args.print_debug_info = True
 
     args.obj_joint_type = "slide"
-    args.connector_ob_type = "dist"
+    args.connector_ob_type = None #"dist"
 
     # args.reset_type = 'var_2dpos'
     # args.reset_type = 'var_2dpos+objs_near'
@@ -121,23 +118,26 @@ def main(args):
     # args.project_dist = -np.inf
 
     args.num_connect_steps = 0
-    args.num_connected_ob = True
+    args.num_connected_ob = False #True
     args.num_connected_reward_scale = 5.0
-
-    args.task_connect_sequence = [0, 1, 2, 3, 4, 5]
-
-    args.select_next_obj_only = False
-
+    args.clip_action_on_collision = True
     args.boundary = [0.5, 0.5, 1.2]
+
+    args.task_connect_sequence = [0, 3, 2, 1] #[0, 1, 2, 3, 4, 5]
+    # args.select_next_obj_only = False
+
+    args.anchor_objects = ['1_column']
 
     # args.task_type = "reach2+select2+connect"
     # args.task_type = "reach2+select2"
     # args.task_type = "reach2+select2+move2"
-    args.task_type = "move2"
+    # args.task_type = "move2"
+    args.task_type = "reach2+select2+move2"
+    # args.task_type = 'reach+select+connect'
 
-    args.clip_action_on_collision = True
-
-    args.anchor_objects = ['1_column']
+    # args.task_type = "move2"
+    # args.task_type = "select2+move2"
+    args.task_type = "reach2+select2+move2"
 
     print()
     print("Creating environment (robot: {}, furniture: {}, background: {})".format(
