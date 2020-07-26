@@ -121,9 +121,14 @@ def main(args):
     args.num_connected_ob = False #True
     args.num_connected_reward_scale = 5.0
     args.clip_action_on_collision = True
-    args.boundary = [0.5, 0.5, 1.2]
 
-    args.task_connect_sequence = [0, 3, 2, 1] #[0, 1, 2, 3, 4, 5]
+
+    # args.boundary = [0.5, 0.5, 1.2]
+    args.boundary = [0.5, 0.5, 0.95]
+
+    args.move_speed = 0.05 #0.025
+
+    # args.task_connect_sequence = [0, 3, 2, 1] #[0, 1, 2, 3, 4, 5]
     # args.select_next_obj_only = False
 
     args.anchor_objects = ['1_column']
@@ -132,12 +137,12 @@ def main(args):
     # args.task_type = "reach2+select2"
     # args.task_type = "reach2+select2+move2"
     # args.task_type = "move2"
-    args.task_type = "reach2+select2+move2"
     # args.task_type = 'reach+select+connect'
 
     # args.task_type = "move2"
+    args.task_type = "select2"
     # args.task_type = "select2+move2"
-    args.task_type = "reach2+select2+move2"
+    # args.task_type = "reach2+select2+move2"
 
     print()
     print("Creating environment (robot: {}, furniture: {}, background: {})".format(

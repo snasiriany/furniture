@@ -82,25 +82,6 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             else:
                 self._obj_dim = 7
 
-        ### sample goal by finding valid configuration in sim ###
-        if self._config.goal_type == 'fixed':
-            assert self.n_objects == 2
-            object_goal = np.zeros(14)
-            object_goal[0:3] = [0.3, 0.3, 0.05]
-            object_goal[7:10] = [-0.3, 0.3, 0.05]
-            object_goal[3:7] = [1, 0, 0, 0]
-            object_goal[10:14] = [1, 0, 0, 0]
-        elif self._config.goal_type == 'reset':
-            object_goal = super().reset(furniture_id=furniture_id, background=background)["object_ob"].copy()
-        elif self._config.goal_type == 'zeros':
-            if not hasattr(self, 'n_objects'):
-                super().reset(furniture_id=furniture_id, background=background)
-            object_goal = np.zeros(self.n_objects*self._obj_dim)
-        elif self._config.goal_type == 'assembled':
-            pass
-        else:
-            raise NotImplementedError
-
         ### reset the env
         obs = super().reset(furniture_id=furniture_id, background=background)
         if "select" in self._task_types:
@@ -115,86 +96,47 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             low_level_a[13] = 1
             obs, _, _, _ = super()._step(low_level_a)
 
-        # if self._config.goal_type == 'assembled':
-        #     assert len(self._anchor_objects) == 1
-        #     assert self._obj_joint_type == 'slide'
-        #     object_goal = obs['object_ob'].copy()
-        #     anchor_id = self._object_name2id[self._anchor_objects[0]]
-        #     conn_info = self._get_oracle_connector_info()
-        #     conn_info_dim = len(conn_info) // self.n_connectors
-        #     for obj_id, obj_name in enumerate(self._object_names):
-        #         if obj_id == anchor_id:
-        #             continue
-        #
-        #         conn1_idx = self._obj_ids_to_connector_idx[obj_id][anchor_id]
-        #         conn2_idx = self._obj_ids_to_connector_idx[anchor_id][obj_id]
-        #         conn1_pos = conn_info[(conn1_idx + 1) * conn_info_dim - 3: (conn1_idx + 1) * conn_info_dim]
-        #         conn2_pos = conn_info[(conn2_idx + 1) * conn_info_dim - 3: (conn2_idx + 1) * conn_info_dim]
-        #
-        #         start = obj_id * 3
-        #         end = start + 3
-        #         object_goal[start:end] = conn2_pos + self._get_qpos(obj_name) - conn1_pos
-        #
-        # # set the goal
-        # robot_ob = obs['robot_ob'].copy()
-        # object_ob = obs['object_ob'].copy()
-        #
-        # robot_goal = np.zeros(robot_ob.size)
-        # if self._config.goal_type is not 'zeros':
-        #     robot_goal[0:3] = self._sample_cursor_position()
-        #     robot_goal[3:6] = self._sample_cursor_position()
-        #     robot_goal[6] = 1
-        #     robot_goal[7] = 1
-
-        self._state_goal = self.sample_goal_for_rollout()
-
-        # self._state_goal = np.concatenate((robot_goal, object_goal))
-        # if self._connector_ob_type is not None:
-        #     if self._connector_ob_type == "dist":
-        #         dim = self.n_connectors * 1 // 2
-        #     elif self._connector_ob_type == "diff":
-        #         dim = self.n_connectors * 3 // 2
-        #     elif self._connector_ob_type == "pos":
-        #         dim = self.n_connectors * 3
-        #     else:
-        #         raise NotImplementedError
-        #     dim += self.n_connectors // 2
-        #     self._state_goal = np.concatenate((self._state_goal, np.zeros(dim)))
-        # if self._config.num_connected_ob:
-        #     self._state_goal = np.concatenate((self._state_goal, np.zeros(1)))
-
         return obs
 
-    def sample_goal_for_rollout(self):
+    def sample_goal_for_rollout(self, mode='assembled'):
+        assert mode in ['assembled', 'assembled_random']
         obs = self._get_obs()
-        if self._config.goal_type == 'assembled':
-            assert len(self._anchor_objects) == 1
-            assert self._obj_joint_type == 'slide'
-            object_goal = obs['object_ob'].copy()
-            anchor_id = self._object_name2id[self._anchor_objects[0]]
-            conn_info = self._get_oracle_connector_info()
-            conn_info_dim = len(conn_info) // self.n_connectors
-            for obj_id, obj_name in enumerate(self._object_names):
-                if obj_id == anchor_id:
-                    continue
+        ### sample goal by finding valid configuration in sim ###
+        # if self._config.goal_type == 'assembled':
+        assert len(self._anchor_objects) == 1
+        assert self._obj_joint_type == 'slide'
+        object_goal = obs['object_ob'].copy()
+        anchor_id = self._object_name2id[self._anchor_objects[0]]
+        conn_info = self._get_oracle_connector_info()
+        conn_info_dim = len(conn_info) // self.n_connectors
+        for obj_id, obj_name in enumerate(self._object_names):
+            if obj_id == anchor_id:
+                continue
 
-                conn1_idx = self._obj_ids_to_connector_idx[obj_id][anchor_id]
-                conn2_idx = self._obj_ids_to_connector_idx[anchor_id][obj_id]
-                conn1_pos = conn_info[(conn1_idx + 1) * conn_info_dim - 3: (conn1_idx + 1) * conn_info_dim]
-                conn2_pos = conn_info[(conn2_idx + 1) * conn_info_dim - 3: (conn2_idx + 1) * conn_info_dim]
+            conn1_idx = self._obj_ids_to_connector_idx[obj_id][anchor_id]
+            conn2_idx = self._obj_ids_to_connector_idx[anchor_id][obj_id]
+            conn1_pos = conn_info[(conn1_idx + 1) * conn_info_dim - 3: (conn1_idx + 1) * conn_info_dim]
+            conn2_pos = conn_info[(conn2_idx + 1) * conn_info_dim - 3: (conn2_idx + 1) * conn_info_dim]
 
-                start = obj_id * 3
-                end = start + 3
-                object_goal[start:end] = conn2_pos + self._get_qpos(obj_name) - conn1_pos
-        else:
-            raise NotImplementedError
+            start = obj_id * 3
+            end = start + 3
+            object_goal[start:end] = conn2_pos + self._get_qpos(obj_name) - conn1_pos
+        # else:
+        #     raise NotImplementedError
+
+        if mode == 'assembled_random':
+            b = self._config.boundary
+            new_xy_pos = np.random.uniform(low=[-b[0] + 0.20, -b[1] + 0.20], high=[b[0] - 0.20, b[1] - 0.20])
+            delta_xy_pos = new_xy_pos - object_goal[anchor_id*3:anchor_id*3+2]
+            for (i, obj_name) in enumerate(self._object_names):
+                object_goal[i*3:i*3+2] += delta_xy_pos
 
         robot_goal = np.zeros(8)
-        if self._config.goal_type is not 'zeros':
-            robot_goal[0:3] = self._sample_cursor_position()
-            robot_goal[3:6] = self._sample_cursor_position()
-            robot_goal[6] = 1
-            robot_goal[7] = 1
+        # if self._config.goal_type is not 'zeros':
+        robot_goal[0:3] = self._sample_cursor_position()
+        robot_goal[3:6] = self._sample_cursor_position()
+        robot_goal[6] = 0
+        robot_goal[7] = 0
 
         return np.concatenate((robot_goal, object_goal))
 
@@ -388,7 +330,9 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         return pos_init, quat_init
 
     def _sample_cursor_position(self):
-        return np.random.uniform(low=[-0.5, -0.5, self._move_speed / 2], high=[0.5, 0.5, 0.5])
+        b = self._config.boundary
+        # return np.random.uniform(low=[-0.5, -0.5, self._move_speed / 2], high=[0.5, 0.5, 0.5])
+        return np.random.uniform(low=[-b[0], -b[1], self._move_speed / 2], high=b)
 
     def _initialize_robot_pos(self):
         """
@@ -398,13 +342,18 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
             self._set_pos('cursor0', self._sample_cursor_position()) #[-0.2, 0., self._move_speed / 2]
             self._set_pos('cursor1', self._sample_cursor_position()) #[0.2, 0., self._move_speed / 2]
         else:
-            if self._task_connect_sequence is not None:
-                cursor0_idx, cursor1_idx = self._task_connect_sequence[0:2]
-            else:
-                while True:
+            while True:
+                if self._anchor_objects is not None:
+                    assert len(self._anchor_objects) == 1
+                    cursor0_idx = self._object_name2id[self._anchor_objects[0]]
+                    other_idxs = list(np.arange(self.n_objects))
+                    other_idxs.remove(cursor0_idx)
+                    cursor1_idx = np.random.choice(other_idxs)
+                else:
                     cursor0_idx, cursor1_idx = np.random.choice(self.n_objects, 2, replace=False)
-                    if self._can_connect(self._object_names[cursor0_idx], self._object_names[cursor1_idx]):
-                        break
+
+                if self._can_connect(self._object_names[cursor0_idx], self._object_names[cursor1_idx]):
+                    break
 
             for i, obj_name in enumerate(self._object_names):
                 body_ids = [self.sim.model.body_name2id(obj_name)]

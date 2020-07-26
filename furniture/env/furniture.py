@@ -492,7 +492,8 @@ class FurnitureEnv(metaclass=EnvMeta):
         cursor_name = 'cursor%d' % cursor_i
         cursor_pos = self._get_pos(cursor_name)
         cursor_pos = cursor_pos + move_offset
-        boundary = self._env_config['boundary']
+        # boundary = self._env_config['boundary']
+        boundary = self._config.boundary
         if (np.abs(cursor_pos) < boundary).all() and cursor_pos[2] >= self._move_speed * 0.45:
             self._set_pos(cursor_name, cursor_pos)
             return True
@@ -581,7 +582,8 @@ class FurnitureEnv(metaclass=EnvMeta):
         self.sim.forward()
         self.sim.step()
         min_pos, max_pos = self._get_bounding_box(obj_name)
-        b = self._env_config["boundary"]
+        # b = self._env_config["boundary"]
+        b = self._config.boundary
         if (min_pos < np.array([-b[0], -b[1], -0.05])).any() or \
                 (max_pos > np.array([b[0], b[1], b[2]])).any():
             return False
@@ -1658,6 +1660,8 @@ class FurnitureEnv(metaclass=EnvMeta):
             self._rng,
             obj_joint_type=self._obj_joint_type,
             anchor_objects=self._anchor_objects,
+            # boundary=self._env_config['boundary'],
+            boundary=self._config.boundary,
         )
 
     def save_demo(self, fname='test.pkl'):

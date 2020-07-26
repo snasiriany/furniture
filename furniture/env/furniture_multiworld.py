@@ -16,7 +16,7 @@ class FurnitureMultiworld(MultitaskEnv):
     Multiworld wrapper class for Furniture assmebly environment.
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, goal_sampling_mode='assembled', **kwargs):
         """
         Args:
             kwarg: configurations for the environment.
@@ -28,6 +28,8 @@ class FurnitureMultiworld(MultitaskEnv):
             # if hasattr(config, key):
             #     setattr(config, key, value)
             setattr(config, key, value)
+
+        self.goal_sampling_mode = goal_sampling_mode
 
         # create an environment
         self._wrapped_env = make_env(name, config)
@@ -43,35 +45,35 @@ class FurnitureMultiworld(MultitaskEnv):
         object_space = Box(object_low, object_high, dtype=np.float32)
         obs_space = concatenate_box_spaces(robot_space, object_space)
 
-        if self._connector_ob_type is not None:
-            if self._connector_ob_type == "dist":
-                dim = self._wrapped_env.n_connectors * 1 // 2
-            elif self._connector_ob_type == "diff":
-                dim = self._wrapped_env.n_connectors * 3 // 2
-            elif self._connector_ob_type == "pos":
-                dim = self._wrapped_env.n_connectors * 3
-            else:
-                raise NotImplementedError
-            dim += self._wrapped_env.n_connectors // 2
-            connector_space = Box(-1 * np.ones(dim), 1 * np.ones(dim), dtype=np.float32)
-            obs_space = concatenate_box_spaces(obs_space, connector_space)
-        if self._config.num_connected_ob:
-            num_connected_space = Box(np.array([0]), np.array([100]), dtype=np.float32)
-            obs_space = concatenate_box_spaces(obs_space, num_connected_space)
-
-        oracle_connector_info_dim = len(self._get_oracle_connector_info())
-        oracle_connector_info_space = Box(
-            -1 * np.ones(oracle_connector_info_dim),
-            1 * np.ones(oracle_connector_info_dim),
-            dtype=np.float32
-        )
-
-        oracle_robot_info_dim = len(self._get_oracle_robot_info())
-        oracle_robot_info_space = Box(
-            -1 * np.ones(oracle_robot_info_dim),
-            1 * np.ones(oracle_robot_info_dim),
-            dtype=np.float32
-        )
+        # if self._connector_ob_type is not None:
+        #     if self._connector_ob_type == "dist":
+        #         dim = self._wrapped_env.n_connectors * 1 // 2
+        #     elif self._connector_ob_type == "diff":
+        #         dim = self._wrapped_env.n_connectors * 3 // 2
+        #     elif self._connector_ob_type == "pos":
+        #         dim = self._wrapped_env.n_connectors * 3
+        #     else:
+        #         raise NotImplementedError
+        #     dim += self._wrapped_env.n_connectors // 2
+        #     connector_space = Box(-1 * np.ones(dim), 1 * np.ones(dim), dtype=np.float32)
+        #     obs_space = concatenate_box_spaces(obs_space, connector_space)
+        # if self._config.num_connected_ob:
+        #     num_connected_space = Box(np.array([0]), np.array([100]), dtype=np.float32)
+        #     obs_space = concatenate_box_spaces(obs_space, num_connected_space)
+        #
+        # oracle_connector_info_dim = len(self._get_oracle_connector_info())
+        # oracle_connector_info_space = Box(
+        #     -1 * np.ones(oracle_connector_info_dim),
+        #     1 * np.ones(oracle_connector_info_dim),
+        #     dtype=np.float32
+        # )
+        #
+        # oracle_robot_info_dim = len(self._get_oracle_robot_info())
+        # oracle_robot_info_space = Box(
+        #     -1 * np.ones(oracle_robot_info_dim),
+        #     1 * np.ones(oracle_robot_info_dim),
+        #     dtype=np.float32
+        # )
         self.observation_space = Dict([
             ('observation', obs_space),
             ('desired_goal',obs_space),
@@ -83,8 +85,8 @@ class FurnitureMultiworld(MultitaskEnv):
             ('proprio_desired_goal', robot_space),
             ('proprio_achieved_goal', robot_space),
 
-            ('oracle_connector_info', oracle_connector_info_space),
-            ('oracle_robot_info', oracle_robot_info_space),
+            # ('oracle_connector_info', oracle_connector_info_space),
+            # ('oracle_robot_info', oracle_robot_info_space),
         ])
 
         # covert action space
@@ -100,6 +102,7 @@ class FurnitureMultiworld(MultitaskEnv):
 
     def reset(self):
         obs = self._wrapped_env.reset()
+        self._state_goal = self.sample_goal()['state_desired_goal']
         return self.__covert_to_multiworld_obs(obs)
 
     def step(self, action):
@@ -149,15 +152,17 @@ class FurnitureMultiworld(MultitaskEnv):
         self.set_state(qpos, qvel)
 
     def sample_goals(self, batch_size):
-        if batch_size == 1:
-            goals = self._wrapped_env.sample_goal_for_rollout()[None]
+        assert self.goal_sampling_mode in ['assembled', 'uniform', 'assembled_random']
+        if batch_size == 1 and self.goal_sampling_mode in ['assembled', 'assembled_random']:
+            goals = self._wrapped_env.sample_goal_for_rollout(self.goal_sampling_mode)[None]
         else:
-            b = np.array(self._wrapped_env._env_config["boundary"])
+            # b = np.array(self._wrapped_env._env_config["boundary"])
+            b = np.array(self._wrapped_env._config.boundary)
             low = -b.copy()
             low[2] = -0.05
             high = b.copy()
 
-            goals = np.zeros((batch_size, len(self._state_goal)))
+            goals = np.zeros((batch_size, len(self.observation_space.spaces['state_desired_goal'].low)))
             goals[:, 0:3] = np.random.uniform(low, high, (batch_size, 3))
             goals[:, 3:6] = np.random.uniform(low, high, (batch_size, 3))
             for i in range(self._wrapped_env.n_objects):
