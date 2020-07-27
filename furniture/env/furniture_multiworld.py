@@ -34,46 +34,34 @@ class FurnitureMultiworld(MultitaskEnv):
         # create an environment
         self._wrapped_env = make_env(name, config)
 
-        orig_obs_space = self._wrapped_env.observation_space
-        robot_low = -1 * np.ones(orig_obs_space['robot_ob'])
-        robot_high = np.ones(orig_obs_space['robot_ob'])
-        object_low = -1 * np.ones(orig_obs_space['object_ob'])
-        object_high = np.ones(orig_obs_space['object_ob'])
+        # orig_obs_space = self._wrapped_env.observation_space
+        # robot_low = -1 * np.ones(orig_obs_space['robot_ob'])
+        # robot_high = np.ones(orig_obs_space['robot_ob'])
+        # object_low = -1 * np.ones(orig_obs_space['object_ob'])
+        # object_high = np.ones(orig_obs_space['object_ob'])
+
+        ### hack in the observation space ###
+        b = np.array(self._wrapped_env._config.boundary)
+        obj_low = list(-b.copy())
+        obj_low[2] = -0.05
+        obj_high = list(b.copy())
+
+        cursor_low = list(-b.copy())
+        cursor_low[2] = self._wrapped_env._move_speed / 2
+        cursor_high = list(b.copy())
+
+        robot_low = np.array(cursor_low + cursor_low + [0, 0])
+        robot_high = np.array(cursor_high + cursor_high + [1, 1])
+
+        object_low = np.array(obj_low * self._wrapped_env.n_objects)
+        object_high = np.array(obj_high * self._wrapped_env.n_objects)
 
         # covert observation space
         robot_space = Box(robot_low, robot_high, dtype=np.float32)
         object_space = Box(object_low, object_high, dtype=np.float32)
         obs_space = concatenate_box_spaces(robot_space, object_space)
 
-        # if self._connector_ob_type is not None:
-        #     if self._connector_ob_type == "dist":
-        #         dim = self._wrapped_env.n_connectors * 1 // 2
-        #     elif self._connector_ob_type == "diff":
-        #         dim = self._wrapped_env.n_connectors * 3 // 2
-        #     elif self._connector_ob_type == "pos":
-        #         dim = self._wrapped_env.n_connectors * 3
-        #     else:
-        #         raise NotImplementedError
-        #     dim += self._wrapped_env.n_connectors // 2
-        #     connector_space = Box(-1 * np.ones(dim), 1 * np.ones(dim), dtype=np.float32)
-        #     obs_space = concatenate_box_spaces(obs_space, connector_space)
-        # if self._config.num_connected_ob:
-        #     num_connected_space = Box(np.array([0]), np.array([100]), dtype=np.float32)
-        #     obs_space = concatenate_box_spaces(obs_space, num_connected_space)
-        #
-        # oracle_connector_info_dim = len(self._get_oracle_connector_info())
-        # oracle_connector_info_space = Box(
-        #     -1 * np.ones(oracle_connector_info_dim),
-        #     1 * np.ones(oracle_connector_info_dim),
-        #     dtype=np.float32
-        # )
-        #
-        # oracle_robot_info_dim = len(self._get_oracle_robot_info())
-        # oracle_robot_info_space = Box(
-        #     -1 * np.ones(oracle_robot_info_dim),
-        #     1 * np.ones(oracle_robot_info_dim),
-        #     dtype=np.float32
-        # )
+
         self.observation_space = Dict([
             ('observation', obs_space),
             ('desired_goal',obs_space),
@@ -84,9 +72,6 @@ class FurnitureMultiworld(MultitaskEnv):
             ('proprio_observation', robot_space),
             ('proprio_desired_goal', robot_space),
             ('proprio_achieved_goal', robot_space),
-
-            # ('oracle_connector_info', oracle_connector_info_space),
-            # ('oracle_robot_info', oracle_robot_info_space),
         ])
 
         # covert action space
