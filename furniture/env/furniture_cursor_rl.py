@@ -124,19 +124,25 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         # else:
         #     raise NotImplementedError
 
-        if mode == 'assembled_random':
-            b = self._config.boundary
-            new_xy_pos = np.random.uniform(low=[-b[0] + 0.20, -b[1] + 0.20], high=[b[0] - 0.20, b[1] - 0.20])
-            delta_xy_pos = new_xy_pos - object_goal[anchor_id*3:anchor_id*3+2]
-            for (i, obj_name) in enumerate(self._object_names):
-                object_goal[i*3:i*3+2] += delta_xy_pos
-
         robot_goal = np.zeros(8)
         # if self._config.goal_type is not 'zeros':
         robot_goal[0:3] = self._sample_cursor_position()
         robot_goal[3:6] = self._sample_cursor_position()
         robot_goal[6] = 0
         robot_goal[7] = 0
+
+        if "select2" in self._task_types:
+            assert self._anchor_objects is not None
+            robot_goal[0:3] = obs['robot_ob'].copy()[0:3]
+
+        if mode == 'assembled_random':
+            b = self._config.boundary
+            new_xy_pos = np.random.uniform(low=[-b[0] + 0.20, -b[1] + 0.20], high=[b[0] - 0.20, b[1] - 0.20])
+            delta_xy_pos = new_xy_pos - object_goal[anchor_id*3:anchor_id*3+2]
+            for (i, obj_name) in enumerate(self._object_names):
+                object_goal[i*3:i*3+2] += delta_xy_pos
+            if "select2" in self._task_types: ### move along with the object ###
+                robot_goal[0:2] += delta_xy_pos
 
         return np.concatenate((robot_goal, object_goal))
 
