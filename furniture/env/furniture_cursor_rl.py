@@ -257,6 +257,7 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                     conn_dist += info['conn{}_dist'.format(info_idx + 1)]
 
                     info_idx += 1
+
         info['conn_dist'] = conn_dist
 
         return info
@@ -451,6 +452,18 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                 xyz_dist = np.linalg.norm(difference[:, start_idx:start_idx + 3], axis=-1)
                 distance_key = 'obj{}_dist'.format(i)
                 stat_to_lists[distance_key].append(xyz_dist)
+
+            ### add in the overall success metric ###
+            num_connected = np.array([info['num_connected'] for info in path['env_infos']])
+            if self._anchor_objects is not None:
+                anchor_id = self._object_name2id[self._anchor_objects[0]]
+                distance_key = 'obj{}_dist'.format(anchor_id)
+                anchor_dist = np.array(stat_to_lists[distance_key][-1])
+                anchor_success = (anchor_dist <= 0.10)
+                stat_to_lists['num_success_steps'].append(anchor_success + num_connected)
+            else:
+                stat_to_lists['num_success_steps'].append(num_connected)
+
         for stat_name, stat_list in stat_to_lists.items():
             statistics.update(create_stats_ordered_dict(
                 'env_infos/{}'.format(stat_name),

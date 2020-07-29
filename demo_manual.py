@@ -71,9 +71,9 @@ def main(args):
         print('{}: {}'.format(i, background))
     print()
     try:
-        # s = input("Choose a background (enter a number from 0 to {}): ".format(len(background_names) - 1))
-        # k = int(s)
-        k=0
+        s = input("Choose a background (enter a number from 0 to {}): ".format(len(background_names) - 1))
+        k = int(s)
+        # k=0
         background_name = background_names[k]
     except:
         print("Input is not valid. Use 0 by default.")
