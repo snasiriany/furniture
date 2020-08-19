@@ -9,7 +9,68 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
     Cursor environment.
     """
 
+    FIXED_RESETS = np.array([
+        [-0.03685665, -0.32419326, 0.22084486, 0.01893082, -0.00590345,
+         0.12296991, 1., 0., -0.03685665, -0.31419326,
+         0.48084313, 0.14279724, -0.24050496, 0.06296991, 0.01893082,
+         -0.03090345, 0.06296991, 0.20965908, 0.08467319, 0.06296991],
+        [0.13346603, -0.16622465, 0.22084486, -0.00378894, -0.06950183,
+         0.12296991, 1., 0., 0.13346603, -0.15622465,
+         0.48084313, -0.16304206, -0.17377157, 0.06296991, -0.24473704,
+         -0.0897793, 0.06296991, -0.00378894, -0.09450183, 0.06296991],
+        [-0.04418922, 0.1760335, 0.22084486, 0.00110201, 0.04937177,
+         0.12296991, 1., 0., -0.04418922, 0.1860335,
+         0.48084313, 0.00110201, 0.02437177, 0.06296991, -0.10962871,
+         -0.10110427, 0.06296991, 0.29133587, -0.03830893, 0.06296991],
+        [-0.2276228, 0.13580448, 0.22084486, 0.05156193, 0.0499421,
+         0.12496308, 1., 0., -0.2276228, 0.14580448,
+         0.48084313, 0.0270408, -0.1443417, 0.06296991, -0.04978667,
+         0.05878046, 0.06294001, 0.05156193, 0.0249421, 0.06496308],
+        [0.20540546, -0.31008301, 0.22084486, -0.24257249, 0.2061961,
+         0.12296991, 1., 0., 0.20540546, -0.30008301,
+         0.48084313, -0.15380018, -0.23346622, 0.06296991, -0.24257249,
+         0.1811961, 0.06296991, 0.13404981, -0.34032248, 0.06296991],
+        [0.03407112, -0.26462421, 0.22084486, 0.25507949, 0.180002,
+         0.12296991, 1., 0., 0.03407112, -0.25462421,
+         0.48084313, 0.11731772, -0.15874014, 0.06296991, 0.25507949,
+         0.155002, 0.06296991, -0.27384512, -0.16713916, 0.06296991],
+    ])
+    FIXED_GOALS = np.array([
+        [-0.19736934, -0.13747103, 0.22084486, -0.31756835, 0.26089952,
+         0.18415409, 0., 0., -0.19736934, -0.12747103,
+         0.48084313, -0.19736934, -0.16247103, 0.16084313, -0.19736934,
+         -0.16247103, 0.32084313, -0.19736934, -0.16247103, 0.46084313],
+        [-0.2385009, -0.01187591, 0.22084486, -0.0237562, 0.44844186,
+         0.74369108, 0., 0., -0.2385009, -0.00187591,
+         0.48084313, -0.2385009, -0.03687591, 0.16084313, -0.2385009,
+         -0.03687591, 0.32084313, -0.2385009, -0.03687591, 0.46084313],
+        [0.12474813, -0.03859283, 0.22084486, 0.01297403, -0.21403595,
+         0.67842107, 0., 0., 0.12474813, -0.02859283,
+         0.48084313, 0.12474813, -0.06359283, 0.16084313, 0.12474813,
+         -0.06359283, 0.32084313, 0.12474813, -0.06359283, 0.46084313],
+        [0.01598389, 0.17238894, 0.22084486, 0.26269178, 0.1150502,
+         0.90100234, 0., 0., 0.01598389, 0.18238894,
+         0.48084313, 0.01598389, 0.14738894, 0.16084313, 0.01598389,
+         0.14738894, 0.32084313, 0.01598389, 0.14738894, 0.46084313],
+        [0.29084723, 0.11613579, 0.22084486, -0.31503998, 0.30527391,
+         0.84735073, 0., 0., 0.29084723, 0.12613579,
+         0.48084313, 0.29084723, 0.09113579, 0.16084313, 0.29084723,
+         0.09113579, 0.32084313, 0.29084723, 0.09113579, 0.46084313],
+        [0.12474813, -0.03859283, 0.22084486, 0.01297403, -0.21403595,
+         0.67842107, 0., 0., 0.12474813, -0.02859283,
+         0.48084313, 0.12474813, -0.06359283, 0.16084313, 0.12474813,
+         -0.06359283, 0.32084313, 0.12474813, -0.06359283, 0.46084313],
+    ])
+
     def __init__(self, config):
+        if "fixed_reset_and_goal_mode" in config:
+            fixed_reset_and_goal_mode = config.fixed_reset_and_goal_mode
+            if fixed_reset_and_goal_mode is not None:
+                assert isinstance(fixed_reset_and_goal_mode, int)
+            self._fixed_reset_and_goal_mode = fixed_reset_and_goal_mode
+        else:
+            self._fixed_reset_and_goal_mode = None
+
         super().__init__(config)
 
         self._state_goal = None
@@ -99,6 +160,9 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         return obs
 
     def sample_goal_for_rollout(self, mode='assembled'):
+        if self._fixed_reset_and_goal_mode is not None:
+            return np.array(FurnitureCursorRLEnv.FIXED_GOALS[self._fixed_reset_and_goal_mode])
+
         assert mode in ['assembled', 'assembled_random']
         obs = self._get_obs()
         ### sample goal by finding valid configuration in sim ###
@@ -287,7 +351,23 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         else:
             raise NotImplementedError
         qvel = np.zeros(self.sim.model.nv)
-        self.set_state(qpos, qvel)
+        self.set_state(qpos, qvel, state_goal[0:6].copy())
+
+    def get_state(self):
+        """
+        Gets the qpos and qvel of the MuJoCo sim
+        """
+        qpos, qvel = super().get_state()
+        cursor_pos = self._get_cursor_pos().copy()
+        return qpos, qvel, cursor_pos
+
+    def set_state(self, qpos, qvel, cursor_pos):
+        """
+        Sets the qpos and qvel of the MuJoCo sim
+        """
+        self._set_pos('cursor0', cursor_pos[0:3])
+        self._set_pos('cursor1', cursor_pos[3:6])
+        super().set_state(qpos, qvel)
 
     def _place_objects(self):
         """
@@ -334,6 +414,12 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
                     rotate = self._rng.randint([0, 0, 0], [1, 1, 360], size=3)
                     quat_init.append(list(T.euler_to_quat(rotate)))
 
+        if self._fixed_reset_and_goal_mode is not None:
+            reset = np.array(FurnitureCursorRLEnv.FIXED_RESETS[self._fixed_reset_and_goal_mode])
+            for i in range(len(self._object_names)):
+                start_idx = 8 + i*3
+                pos_init[i] = reset[start_idx:start_idx+3].copy()
+
         return pos_init, quat_init
 
     def _sample_cursor_position(self):
@@ -345,6 +431,12 @@ class FurnitureCursorRLEnv(FurnitureCursorEnv):
         """
         Initializes robot posision with random noise perturbation
         """
+        if self._fixed_reset_and_goal_mode is not None:
+            reset = np.array(FurnitureCursorRLEnv.FIXED_RESETS[self._fixed_reset_and_goal_mode])
+            self._set_pos('cursor0', reset[0:3].copy())
+            self._set_pos('cursor1', reset[3:6].copy())
+            return
+
         if "reach" in self._task_types:
             self._set_pos('cursor0', self._sample_cursor_position()) #[-0.2, 0., self._move_speed / 2]
             self._set_pos('cursor1', self._sample_cursor_position()) #[0.2, 0., self._move_speed / 2]

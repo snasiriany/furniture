@@ -31,7 +31,7 @@
             <site name="box1-col,0,conn_site" pos="0.0 0.025 0.06" quat="0.707 0 0.707 0" rgba="1 0 0 1" size="0.01" />
             <site name="2_box1_bottom_site" pos="0 0 -0.06" rgba="0 0 1 0.3" size="0.01" />
             <site name="2_box1_top_site" pos="0.0 0.0 0.06" rgba="0 0 1 0.3" size="0.01" />
-            <site name="2_box1_horizontal_radius_site" pos="0 0 0" rgba="0 0 1 0.3" size="0.05" />
+            <site name="2_box1_horizontal_radius_site" pos="0 0 0" rgba="0 0 1 0.0" size="0.05" />
 
             <site name="2_box1_s1" pos="-0.06 0 0" rgba="0 0 1 0" size="0.01" />
             <site name="2_box1_s2" pos="0.06 0.0 0" rgba="0 0 1 0" size="0.01" />
@@ -48,7 +48,7 @@
             <site name="box2-col,0,conn_site" pos="0.0 0.025 0.06" quat="0.707 0 0.707 0" rgba="0 1 0 1" size="0.01" />
             <site name="3_box2_bottom_site" pos="0 0 -0.06" rgba="0 0 1 0.3" size="0.01" />
             <site name="3_box2_top_site" pos="0.0 0.0 0.06" rgba="0 0 1 0.3" size="0.01" />
-            <site name="3_box2_horizontal_radius_site" pos="0 0 0" rgba="0 0 1 0.3" size="0.05" />
+            <site name="3_box2_horizontal_radius_site" pos="0 0 0" rgba="0 0 1 0.0" size="0.05" />
 
             <site name="3_box2_s1" pos="-0.06 0 0" rgba="0 0 1 0" size="0.01" />
             <site name="3_box2_s2" pos="0.06 0.0 0" rgba="0 0 1 0" size="0.01" />
@@ -65,7 +65,7 @@
             <site name="box3-col,0,conn_site" pos="0.0 0.025 0.06" quat="0.707 0 0.707 0" rgba="0 0 1 1" size="0.01" />
             <site name="4_box3_bottom_site" pos="0 0 -0.06" rgba="0 0 1 0.3" size="0.01" />
             <site name="4_box3_top_site" pos="0.0 0.0 0.06" rgba="0 0 1 0.3" size="0.01" />
-            <site name="4_box3_horizontal_radius_site" pos="0 0 0" rgba="0 0 1 0.3" size="0.05" />
+            <site name="4_box3_horizontal_radius_site" pos="0 0 0" rgba="0 0 1 0.0" size="0.05" />
 
             <site name="4_box3_s1" pos="-0.06 0 0" rgba="0 0 1 0" size="0.01" />
             <site name="4_box3_s2" pos="0.06 0.0 0" rgba="0 0 1 0" size="0.01" />

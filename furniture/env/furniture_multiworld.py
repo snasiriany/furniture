@@ -133,8 +133,7 @@ class FurnitureMultiworld(MultitaskEnv):
         return self.get_state()
 
     def set_env_state(self, state):
-        qpos, qvel = state
-        self.set_state(qpos, qvel)
+        self.set_state(*state)
 
     def sample_goals(self, batch_size):
         assert self.goal_sampling_mode in ['assembled', 'uniform', 'assembled_random']
